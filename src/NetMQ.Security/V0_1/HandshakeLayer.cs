@@ -361,6 +361,7 @@ namespace NetMQ.Security.V0_1
             var certificateMessage = new CertificateMessage();
             certificateMessage.SetFromNetMQMessage(incomingMessage);
 
+            //Awlays return false.
             if (!VerifyCertificate(certificateMessage.Certificate))
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Unable to verify certificate");
@@ -456,7 +457,12 @@ namespace NetMQ.Security.V0_1
             m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
 
             byte[] seed = m_remoteHash.Hash;
+
+#if NET40
             m_remoteHash.Dispose();
+#else
+            m_remoteHash.Clear();
+#endif
             m_remoteHash = null;
 
             var label = SecurityParameters.Entity == ConnectionEnd.Client ? ServerFinishedLabel : ClientFinshedLabel;
@@ -481,7 +487,9 @@ namespace NetMQ.Security.V0_1
             m_localHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
 
             byte[] seed = m_localHash.Hash;
+#if NET4
             m_localHash.Dispose();
+#endif
             m_localHash = null;
 
             var label = SecurityParameters.Entity == ConnectionEnd.Server ? ServerFinishedLabel : ClientFinshedLabel;
@@ -589,19 +597,25 @@ namespace NetMQ.Security.V0_1
         {
             if (m_rng != null)
             {
+#if NET40
                 m_rng.Dispose();
+#endif
                 m_rng = null;
             }
 
             if (m_remoteHash != null)
             {
+#if NET40
                 m_remoteHash.Dispose();
+#endif
                 m_remoteHash = null;
             }
 
             if (m_localHash != null)
             {
+#if NET40
                 m_localHash.Dispose();
+#endif
                 m_localHash = null;
             }
 

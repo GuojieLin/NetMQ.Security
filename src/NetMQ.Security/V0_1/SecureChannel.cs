@@ -19,8 +19,9 @@ namespace NetMQ.Security.V0_1
 
         /// <summary>
         /// This is a fixed array of 2 bytes that contain the protocol-version, { 0, 1 }.
+        /// TLS Version 1.2, which uses the version { 3, 3 }.
         /// </summary>
-        private readonly byte[] m_protocolVersion = new byte[] { 0, 1 };
+        private readonly byte[] m_protocolVersion = new byte[] { 3, 3 };
 
         /// <summary>
         /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
@@ -95,6 +96,7 @@ namespace NetMQ.Security.V0_1
             if (incomingMessage != null)
             {
                 // Verify that the first two frames are the protocol-version and the content-type,
+                //标准的没有这个版本
                 NetMQFrame protocolVersionFrame = incomingMessage.Pop();
                 byte[] protocolVersionBytes = protocolVersionFrame.ToByteArray();
 
@@ -168,6 +170,7 @@ namespace NetMQ.Security.V0_1
         internal NetMQMessage InternalEncryptAndWrapMessage(ContentType contentType, NetMQMessage plainMessage)
         {
             NetMQMessage encryptedMessage = m_recordLayer.EncryptMessage(contentType, plainMessage);
+            //encryptedMessage.Push(m_protocolVersion);
             encryptedMessage.Push(new[] { (byte)contentType });
             encryptedMessage.Push(m_protocolVersion);
 
