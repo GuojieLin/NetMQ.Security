@@ -96,19 +96,6 @@ namespace NetMQ.Security.V0_1
             if (incomingMessage != null)
             {
                 // Verify that the first two frames are the protocol-version and the content-type,
-                //标准的没有这个版本
-                NetMQFrame protocolVersionFrame = incomingMessage.Pop();
-                byte[] protocolVersionBytes = protocolVersionFrame.ToByteArray();
-
-                if (protocolVersionBytes.Length != 2)
-                {
-                    throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Wrong length for protocol version frame");
-                }
-
-                if (!protocolVersionBytes.SequenceEqual(m_protocolVersion))
-                {
-                    throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "Wrong protocol version");
-                }
 
                 NetMQFrame contentTypeFrame = incomingMessage.Pop();
 
@@ -123,6 +110,20 @@ namespace NetMQ.Security.V0_1
                 if (contentType != ContentType.ChangeCipherSpec && contentType != ContentType.Handshake)
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidContentType, "Unknown content type");
+                }
+
+                //标准的没有这个版本
+                NetMQFrame protocolVersionFrame = incomingMessage.Pop();
+                byte[] protocolVersionBytes = protocolVersionFrame.ToByteArray();
+
+                if (protocolVersionBytes.Length != 2)
+                {
+                    throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Wrong length for protocol version frame");
+                }
+
+                if (!protocolVersionBytes.SequenceEqual(m_protocolVersion))
+                {
+                    throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "Wrong protocol version");
                 }
 
                 if (ChangeSuiteChangeArrived)
@@ -170,9 +171,8 @@ namespace NetMQ.Security.V0_1
         internal NetMQMessage InternalEncryptAndWrapMessage(ContentType contentType, NetMQMessage plainMessage)
         {
             NetMQMessage encryptedMessage = m_recordLayer.EncryptMessage(contentType, plainMessage);
-            //encryptedMessage.Push(m_protocolVersion);
-            encryptedMessage.Push(new[] { (byte)contentType });
             encryptedMessage.Push(m_protocolVersion);
+            encryptedMessage.Push(new[] { (byte)contentType });
 
             return encryptedMessage;
         }
