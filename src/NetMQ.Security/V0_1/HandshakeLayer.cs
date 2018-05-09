@@ -487,7 +487,7 @@ namespace NetMQ.Security.V0_1
             m_localHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
 
             byte[] seed = m_localHash.Hash;
-#if NET4
+#if NET40
             m_localHash.Dispose();
 #endif
             m_localHash = null;

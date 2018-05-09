@@ -226,8 +226,8 @@ namespace NetMQ.Security.V0_1
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "cipher message should have at least 2 frames");
             }
 
-            NetMQFrame protocolVersionFrame = cipherMessage.Pop();
             NetMQFrame contentTypeFrame = cipherMessage.Pop();
+            NetMQFrame protocolVersionFrame = cipherMessage.Pop();
 
             if (!protocolVersionFrame.ToByteArray().SequenceEqual(m_protocolVersion))
             {

@@ -23,12 +23,12 @@ namespace NetMQ.Console
                 // the certificate of the server, by default the secure channel 
                 // is checking that the source of the 
                 // certitiface is a root certificate authority
-                //secureChannel.SetVerifyCertificate(c => true);
+                secureChannel.SetVerifyCertificate(c => true);
 
                 // we need to set X509Certificate with a private key for the server
-                X509Certificate2 certificate = new X509Certificate2(
-                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"client.pfx"),"1234");
-                secureChannel.Certificate = certificate;
+                //X509Certificate2 certificate = new X509Certificate2(
+                //    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"client.pfx"),"1234");
+                //secureChannel.Certificate = certificate;
 
                 List<NetMQMessage> outgoingMessages = new List<NetMQMessage>();
 
