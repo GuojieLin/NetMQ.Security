@@ -1,4 +1,5 @@
-﻿using NetMQ.Security.V0_1;
+﻿using NetMQ.Security;
+using NetMQ.Security.V0_1;
 using NetMQ.Sockets;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,11 @@ namespace NetMQ.Console
 {
     class Server
     {
+        Configuration m_configuration;
+        public Server(Configuration configuration)
+        {
+            m_configuration = configuration;
+        }
         public void Do()
         {
             // we are using dealer here, but we can use router as well, we just have to manager
@@ -18,7 +24,7 @@ namespace NetMQ.Console
             {
                 socket.Bind("tcp://*:5556");
 
-                using (SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server))
+                using (SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server, m_configuration))
                 {
 
                     // we need to set X509Certificate with a private key for the server
@@ -57,6 +63,11 @@ namespace NetMQ.Console
                     // decrypting the message
                     NetMQMessage plainMessage = secureChannel.DecryptApplicationMessage(cipherMessage);
                     System.Console.WriteLine(plainMessage.First.ConvertToString());
+                    plainMessage = new NetMQMessage();
+                    plainMessage.Append("World");
+
+                    // encrypting the message and sending it over the socket
+                    socket.SendMultipartMessage(secureChannel.EncryptApplicationMessage(plainMessage));
                 }
             }
 

@@ -1,16 +1,12 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using NetMQ.Security.V0_1.HandshakeMessages;
+
+namespace NetMQ.Security.V3_3.HandshakeMessages
 {
     /// <summary>
     /// The ServerHelloDoneMessage is a HandshakeMessage with a HandshakeType of ServerHelloDone.
     /// </summary>
-    internal class ServerHelloDoneMessage : HandshakeMessage
+    internal class ServerHelloDoneMessage : V0_1.HandshakeMessages.ServerHelloDoneMessage
     {
-        /// <summary>
-        /// Get the part of the handshake-protocol that this HandshakeMessage represents
-        /// - in this case, ServerHelloDone.
-        /// </summary>
-        public override HandshakeType HandshakeType => HandshakeType.ServerHelloDone;
-
         /// <summary>
         /// Remove the one frame from the given NetMQMessage, which shall contain one byte with the HandshakeType,
         /// presumed here to be ServerHelloDone.
@@ -20,18 +16,14 @@
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             RemoteHandShakeType(message);
+            NetMQFrame lengthFrame = message.Pop();
             InnerSetFromNetMQMessage(message);
-        }
-        protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
-        {
-            if (message.FrameCount != 0)
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
-            }
         }
         public override NetMQMessage ToNetMQMessage()
         {
-            return AddHandShakeType();
+            NetMQMessage message = base.ToNetMQMessage();
+            InsertLength(message);
+            return message;
         }
     }
 }

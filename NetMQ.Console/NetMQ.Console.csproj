@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="bin\Debug\net35\server.crt" />
     <None Include="bin\Debug\net35\server.pfx" />
     <None Include="bin\Debug\net40\client.pfx" />
     <None Include="bin\Debug\net40\server.pfx" />

@@ -1,4 +1,7 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using NetMQ.Security.V0_1.HandshakeMessages;
+using System.Diagnostics;
+
+namespace NetMQ.Security.V3_3.HandshakeMessages
 {
     /// <summary>
     /// The ClientKeyExchangeMessage is a HandshakeMessage with a HandshakeType of ClientKeyExchange.
@@ -6,24 +9,8 @@
     /// and overrides SetFromNetMQMessage/ToNetMQMessage to read/write that
     /// from the frames of a <see cref="NetMQMessage"/>.
     /// </summary>
-    internal class ClientKeyExchangeMessage : HandshakeMessage
+    internal class ClientKeyExchangeMessage : V0_1.HandshakeMessages.ClientKeyExchangeMessage
     {
-        /// <summary>
-        /// The number of bytes within the EncryptedPreMasterSecret.
-        /// </summary>
-        public const int PreMasterSecretLength = 48;
-
-        /// <summary>
-        /// Get the part of the handshake-protocol that this HandshakeMessage represents
-        /// - in this case a ClientKeyExchange.
-        /// </summary>
-        public override HandshakeType HandshakeType => HandshakeType.ClientKeyExchange;
-
-        /// <summary>
-        /// Get or set the 48-byte array that is the encrypted pre-master secret.
-        /// </summary>
-        public byte[] EncryptedPreMasterSecret { get; set; }
-
         /// <summary>
         /// Return a new NetMQMessage that holds two frames:
         /// 1. a frame with a single byte representing the HandshakeType, which is ClientKeyExchange,
@@ -32,9 +19,8 @@
         /// <returns>the resulting new NetMQMessage</returns>
         public override NetMQMessage ToNetMQMessage()
         {
-            NetMQMessage message = AddHandShakeType();
-            message.Append(EncryptedPreMasterSecret);
-
+            NetMQMessage message = base.ToNetMQMessage();
+            InsertLength(message);
             return message;
         }
 
@@ -48,19 +34,8 @@
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             RemoteHandShakeType(message);
+            NetMQFrame lengthFrame = message.Pop();
             InnerSetFromNetMQMessage(message);
-        }
-        protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
-        {
-
-            if (message.FrameCount != 1)
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
-            }
-
-            NetMQFrame preMasterSecretFrame = message.Pop();
-
-            EncryptedPreMasterSecret = preMasterSecretFrame.ToByteArray();
         }
     }
 }

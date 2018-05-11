@@ -1,4 +1,5 @@
-﻿using NetMQ.Security.V0_1;
+﻿using NetMQ.Security;
+using NetMQ.Security.V0_1;
 using NetMQ.Sockets;
 using System;
 using System.Collections;
@@ -25,10 +26,11 @@ namespace NetMQ.Console
             // x509Root = new X509Certificate2(@"F:\Study\ubuntu\openssl\server.crt");
             //System.Console.WriteLine("Server Certificate Verified?: {0}{1}", x509Root.Verify(), Environment.NewLine);
             //System.Console.ReadKey();
-            Server server = new Server();
+            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Server server = new Server(configuration);
             Action action1 = server.Do;
             action1.BeginInvoke(ac => { action1.EndInvoke(ac); }, null);
-            Client client = new Client();
+            Client client = new Client(configuration);
             Action action2 = client.Do;
             action2.BeginInvoke(ac => { action2.EndInvoke(ac); }, null);
             System.Console.ReadKey();

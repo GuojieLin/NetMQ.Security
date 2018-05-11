@@ -30,12 +30,15 @@ namespace NetMQ.Security.V0_1
         private ulong m_leftWindow = 0;
         private ulong m_rightWindow = WindowSize - 1;
         private readonly bool[] m_windowMap = new bool[WindowSize];
-
+        /// <summary>
+        /// 配置
+        /// </summary>
+        private Configuration m_configuration ;
         /// <summary>
         /// Create a new RecordLayer object with the given protocol-version.
         /// </summary>
         /// <param name="protocolVersion">a 2-element byte-array that denotes the version of this protocol</param>
-        public RecordLayer(byte[] protocolVersion)
+        public RecordLayer(byte[] protocolVersion, Configuration configuration)
         {
             m_protocolVersion = protocolVersion;
 
@@ -45,6 +48,7 @@ namespace NetMQ.Security.V0_1
                 MACAlgorithm = MACAlgorithm.Null
             };
 
+            m_configuration = configuration;
             PRF = new SHA256PRF();
         }
 

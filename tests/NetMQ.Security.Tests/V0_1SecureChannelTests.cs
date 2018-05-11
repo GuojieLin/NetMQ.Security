@@ -7,20 +7,20 @@ using NUnit.Framework;
 namespace NetMQ.Security.Tests
 {
     [TestFixture]
-    public class SecureChannelTests
+    public class V0_1SecureChannelTests
     {
         private SecureChannel m_clientSecureChannel;
         private SecureChannel m_serverSecureChannel;
 
         [SetUp]
         public void Setup()
-        {            
-            X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\NetMQ.Testing.pfx", "1");
+        {
+            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = false };
+            X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
-            m_serverSecureChannel = new SecureChannel(ConnectionEnd.Server) { Certificate = certificate };
+            m_serverSecureChannel = new SecureChannel(ConnectionEnd.Server, configuration) { Certificate = certificate };
 
-            m_clientSecureChannel = new SecureChannel(ConnectionEnd.Client);
-            m_clientSecureChannel.SetVerifyCertificate(c => true);
+            m_clientSecureChannel = new SecureChannel(ConnectionEnd.Client, configuration);
 
             IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
             IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();
@@ -159,7 +159,7 @@ namespace NetMQ.Security.Tests
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
             // changing the protocol version
-            cipherMessage[0].Buffer[0] = 99;
+            cipherMessage[1].Buffer[0] = 99;
 
             NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
 

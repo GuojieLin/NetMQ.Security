@@ -37,8 +37,11 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 3.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            base.SetFromNetMQMessage(message);
-
+            RemoteHandShakeType(message);
+            InnerSetFromNetMQMessage(message);
+        }
+        protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
+        {
             if (message.FrameCount != 3)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
@@ -70,7 +73,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <returns>the resulting new NetMQMessage</returns>
         public override NetMQMessage ToNetMQMessage()
         {
-            NetMQMessage message = base.ToNetMQMessage();
+            NetMQMessage message = AddHandShakeType();
 
             message.Append(RandomNumber);
 

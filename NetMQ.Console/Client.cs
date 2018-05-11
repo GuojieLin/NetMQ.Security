@@ -1,4 +1,5 @@
 ﻿using NetMQ.Security.V0_1;
+using NetMQ.Security;
 using NetMQ.Sockets;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,11 @@ namespace NetMQ.Console
 {
     class Client
     {
+        Configuration m_configuration;
+        public Client(Configuration configuration)
+        {
+            m_configuration = configuration;
+        }
         public void Do()
         {
 
@@ -17,18 +23,18 @@ namespace NetMQ.Console
             {
                 socket.Connect("tcp://127.0.0.1:5556");
 
-                SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Client);
+                SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Client , m_configuration);
 
                 // we are not using signed certificate so we need to validate 
                 // the certificate of the server, by default the secure channel 
                 // is checking that the source of the 
                 // certitiface is a root certificate authority
-                secureChannel.SetVerifyCertificate(c => true);
+                //secureChannel.SetVerifyCertificate(c => true);
 
                 // we need to set X509Certificate with a private key for the server
-                //X509Certificate2 certificate = new X509Certificate2(
-                //    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"client.pfx"),"1234");
-                //secureChannel.Certificate = certificate;
+                X509Certificate2 certificate = new X509Certificate2(
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"server.crt"),"1234");
+                secureChannel.Certificate = certificate;
 
                 List<NetMQMessage> outgoingMessages = new List<NetMQMessage>();
 
@@ -71,6 +77,11 @@ namespace NetMQ.Console
 
                 // encrypting the message and sending it over the socket
                 socket.SendMultipartMessage(secureChannel.EncryptApplicationMessage(plainMessage));
+                NetMQMessage cipherMessage = socket.ReceiveMultipartMessage();
+
+                // decrypting the message
+                plainMessage = secureChannel.DecryptApplicationMessage(cipherMessage);
+                System.Console.WriteLine(plainMessage.First.ConvertToString());
             }
 
         }

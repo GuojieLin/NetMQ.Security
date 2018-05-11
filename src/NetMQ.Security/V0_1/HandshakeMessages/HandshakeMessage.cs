@@ -1,4 +1,6 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using System;
+
+namespace NetMQ.Security.V0_1.HandshakeMessages
 {
     /// <summary>
     /// This enum-type specifies what part of the SSL/TLS handshake-protocol;
@@ -49,24 +51,50 @@
         /// </summary>
         public abstract HandshakeType HandshakeType { get; }
 
+        public virtual void SetFromNetMQMessage(NetMQMessage message)
+        {
+            throw new NotImplementedException();
+        }
+
+        public virtual NetMQMessage ToNetMQMessage()
+        {
+            throw new NotImplementedException();
+        }
         /// <summary>
         /// Return a new NetMQMessage that holds a frame containing only one byte containing the HandshakeType.
         /// </summary>
         /// <returns>the HandshakeType wrapped in a new NetMQMessage</returns>
-        public virtual NetMQMessage ToNetMQMessage()
+        protected NetMQMessage AddHandShakeType()
         {
             NetMQMessage message = new NetMQMessage();
             message.Append(new[] { (byte)HandshakeType });
 
             return message;
         }
+        public void InsertLength(NetMQMessage message)
+        {
+            var handShakeType = message.Pop();
 
+            byte[] lengthBytes= new byte[3];
+            GetLength(lengthBytes, message);
+            message.Push(lengthBytes);
+            message.Push(handShakeType);
+        }
+        /// <summary>
+        /// 获取NetMQFrame数组的总字节数,填充到lengthBytes中。
+        /// </summary>
+        /// <returns>the resulting new NetMQMessage</returns>
+        /// <exception cref="ArgumentException">handshake的数据大小不能超过65535,因为协议使用2个字节存储长度。</exception>
+        public virtual void GetLength(byte[] lengthBytes ,NetMQMessage message)
+        {
+            message.GetLength(lengthBytes);
+        }
         /// <summary>
         /// Remove the first frame from the given NetMQMessage.
         /// </summary>
         /// <param name="message">a NetMQMessage - which needs to have at least one frame</param>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must not be 0.</exception>
-        public virtual void SetFromNetMQMessage(NetMQMessage message)
+        protected void RemoteHandShakeType(NetMQMessage message)
         {
             if (message.FrameCount == 0)
             {
