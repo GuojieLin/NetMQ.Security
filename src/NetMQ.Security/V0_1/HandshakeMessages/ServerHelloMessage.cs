@@ -7,6 +7,7 @@
     /// </summary>
     internal class ServerHelloMessage : HandshakeMessage
     {
+        protected virtual byte[] Version { get { return new byte[] { 0, 1 }; } }
         /// <summary>
         /// Get the part of the handshake-protocol that this HandshakeMessage represents
         /// - in this case, ServerHello.
@@ -34,6 +35,7 @@
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             RemoteHandShakeType(message);
+            NetMQFrame versionFrame = message.Pop();
             InnerSetFromNetMQMessage(message);
         }
         protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
@@ -62,6 +64,7 @@
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
+            message.Append(Version);
             message.Append(RandomNumber);
             message.Append(new byte[] { 0, (byte)CipherSuite });
 

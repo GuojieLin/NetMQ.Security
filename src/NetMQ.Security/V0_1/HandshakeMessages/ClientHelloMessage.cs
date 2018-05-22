@@ -10,6 +10,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
     /// </summary>
     internal class ClientHelloMessage : HandshakeMessage
     {
+        protected virtual byte[] Version { get { return new byte[] { 0, 1 }; } }
         /// <summary>
         /// Get or set the Random-Number that is a part of the handshake-protocol, as a byte-array.
         /// </summary>
@@ -38,6 +39,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             RemoteHandShakeType(message);
+            NetMQFrame versionFrame = message.Pop();
             InnerSetFromNetMQMessage(message);
         }
         protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
@@ -46,14 +48,17 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
-
             // get the random number
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
 
             // get the length of the cipher-suites array
             NetMQFrame ciphersLengthFrame = message.Pop();
-            int ciphersLength = BitConverter.ToInt32(ciphersLengthFrame.Buffer, 0);
+
+            byte[] temp = new byte[4];
+            temp[1] = ciphersLengthFrame.Buffer[0];
+            temp[0] = ciphersLengthFrame.Buffer[1];
+            int ciphersLength = BitConverter.ToInt32(temp, 0);
 
             // get the cipher-suites
             NetMQFrame ciphersFrame = message.Pop();
@@ -74,10 +79,11 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
-
+            message.Append(Version);
             message.Append(RandomNumber);
+            var bytes = BitConverter.GetBytes(CipherSuites.Length);
 
-            message.Append(BitConverter.GetBytes(CipherSuites.Length));
+            message.Append(new byte[2] { bytes[1], bytes[0] });
 
             byte[] cipherSuitesBytes = new byte[2 * CipherSuites.Length];
 

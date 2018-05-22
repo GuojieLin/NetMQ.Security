@@ -1,6 +1,6 @@
 ﻿using NetMQ.Security.V0_1.HandshakeMessages;
 
-namespace NetMQ.Security.V3_3.HandshakeMessages
+namespace NetMQ.Security.V0_2.HandshakeMessages
 {
     /// <summary>
     /// The ServerHelloDoneMessage is a HandshakeMessage with a HandshakeType of ServerHelloDone.

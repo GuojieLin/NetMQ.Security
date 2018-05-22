@@ -64,7 +64,7 @@ namespace NetMQ.Console
                     NetMQMessage plainMessage = secureChannel.DecryptApplicationMessage(cipherMessage);
                     System.Console.WriteLine(plainMessage.First.ConvertToString());
                     plainMessage = new NetMQMessage();
-                    plainMessage.Append("World");
+                    plainMessage.Append("Worldddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
 
                     // encrypting the message and sending it over the socket
                     socket.SendMultipartMessage(secureChannel.EncryptApplicationMessage(plainMessage));

@@ -76,15 +76,11 @@ namespace NetMQ.Security.V0_1
         /// </summary>
         private IPRF m_prf = new SHA256PRF();
         /// <summary>
-        /// 配置
-        /// </summary>
-        private Configuration  m_configuration;
-        /// <summary>
         /// Create a new HandshakeLayer object given a SecureChannel and which end of the connection it is to be.
         /// </summary>
         /// <param name="secureChannel">the SecureChannel that comprises the secure functionality of this layer</param>
         /// <param name="connectionEnd">this specifies which end of the connection - Server or Client</param>
-        public HandshakeLayer(SecureChannel secureChannel, ConnectionEnd connectionEnd, Configuration configuration)
+        public HandshakeLayer(SecureChannel secureChannel, ConnectionEnd connectionEnd)
         {
             // SHA256 is a class that computes the SHA-256 (SHA stands for Standard Hashing Algorithm) of it's input.
             m_localHash = SHA256.Create();
@@ -98,7 +94,6 @@ namespace NetMQ.Security.V0_1
                 PRFAlgorithm = PRFAlgorithm.SHA256,
                 CipherType = CipherType.Block
             };
-            m_configuration = configuration;
             AllowedCipherSuites = new[]
             {
                 CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256,
@@ -142,6 +137,10 @@ namespace NetMQ.Security.V0_1
         /// </summary>
         public VerifyCertificateDelegate VerifyCertificate { get; set; }
 
+        /// <summary>
+        /// 当前使用的版本。
+        /// </summary>
+        private byte[] m_ProtocolVersion ;
         /// <summary>
         /// Given an incoming handshake-protocol message, route it to the corresponding handler.
         /// </summary>
@@ -198,6 +197,11 @@ namespace NetMQ.Security.V0_1
             return m_done;
         }
 
+        internal void SetProtocolVersion(byte[] protocolVersion)
+        {
+            m_ProtocolVersion = protocolVersion;
+        }
+
         /// <summary>
         /// Compute the hash of the given message twice, first using the local hashing algorithm
         /// and then again using the remote-peer hashing algorithm.
@@ -249,8 +253,8 @@ namespace NetMQ.Security.V0_1
 
         private void OnHelloRequest(OutgoingMessageBag outgoingMessages)
         {
-            var clientHelloMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ClientHelloMessage():
+            var clientHelloMessage = m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ClientHelloMessage():
                 new ClientHelloMessage();
             clientHelloMessage.RandomNumber = new byte[RandomNumberLength] ;
 
@@ -278,8 +282,8 @@ namespace NetMQ.Security.V0_1
 
             HashLocalAndRemote(incomingMessage);
 
-            var clientHelloMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ClientHelloMessage():
+            var clientHelloMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ClientHelloMessage():
                new ClientHelloMessage();
             clientHelloMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -294,8 +298,8 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloDone(OutgoingMessageBag outgoingMessages)
         {
-            var serverHelloDoneMessage =  m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ServerHelloDoneMessage():
+            var serverHelloDoneMessage = m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ServerHelloDoneMessage():
                 new ServerHelloDoneMessage();
             NetMQMessage outgoingMessage = serverHelloDoneMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
@@ -305,8 +309,8 @@ namespace NetMQ.Security.V0_1
 
         private void AddCertificateMessage(OutgoingMessageBag outgoingMessages)
         {
-            var certificateMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.CertificateMessage():
+            var certificateMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.CertificateMessage():
                 new CertificateMessage ();
             certificateMessage.Certificate = LocalCertificate;
             NetMQMessage outgoingMessage = certificateMessage.ToNetMQMessage();
@@ -317,8 +321,8 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
         {
-            var serverHelloMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ServerHelloMessage():
+            var serverHelloMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage ();
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
             m_rng.GetBytes(serverHelloMessage.RandomNumber);
@@ -354,8 +358,8 @@ namespace NetMQ.Security.V0_1
 
             HashLocalAndRemote(incomingMessage);
 
-            var serverHelloMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ServerHelloMessage():
+            var serverHelloMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage();
             serverHelloMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -375,8 +379,8 @@ namespace NetMQ.Security.V0_1
 
             HashLocalAndRemote(incomingMessage);
 
-            var certificateMessage =m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.CertificateMessage():
+            var certificateMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.CertificateMessage():
                 new CertificateMessage();
             certificateMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -400,8 +404,8 @@ namespace NetMQ.Security.V0_1
 
             HashLocalAndRemote(incomingMessage);
 
-            var serverHelloDoneMessage =m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ServerHelloDoneMessage():
+            var serverHelloDoneMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ServerHelloDoneMessage():
                 new ServerHelloDoneMessage();
             serverHelloDoneMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -414,8 +418,8 @@ namespace NetMQ.Security.V0_1
 
         private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
         {
-            var clientKeyExchangeMessage =m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ClientKeyExchangeMessage():
+            var clientKeyExchangeMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ClientKeyExchangeMessage():
                 new ClientKeyExchangeMessage();
 
             var premasterSecret = new byte[ClientKeyExchangeMessage.PreMasterSecretLength];
@@ -442,8 +446,8 @@ namespace NetMQ.Security.V0_1
 
             HashLocalAndRemote(incomingMessage);
 
-            var clientKeyExchangeMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.ClientKeyExchangeMessage():
+            var clientKeyExchangeMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.ClientKeyExchangeMessage():
                 new ClientKeyExchangeMessage();
             clientKeyExchangeMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -476,8 +480,8 @@ namespace NetMQ.Security.V0_1
                 HashLocal(incomingMessage);
             }
 
-            var finishedMessage = m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.FinishedMessage():
+            var finishedMessage =m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.FinishedMessage():
                 new FinishedMessage();
             finishedMessage.SetFromNetMQMessage(incomingMessage);
 
@@ -521,8 +525,8 @@ namespace NetMQ.Security.V0_1
 
             var label = SecurityParameters.Entity == ConnectionEnd.Server ? ServerFinishedLabel : ClientFinshedLabel;
 
-            var finishedMessage =  m_configuration.StandardTLSFormat?
-                new V3_3.HandshakeMessages.FinishedMessage():
+            var finishedMessage = m_ProtocolVersion.SequenceEqual(Constants.V0_2)?
+                new V0_2.HandshakeMessages.FinishedMessage():
                 new FinishedMessage();
             finishedMessage.VerifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);
 

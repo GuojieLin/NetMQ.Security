@@ -18,12 +18,18 @@ namespace NetMQ.Security.V0_1
         private readonly OutgoingMessageBag m_outgoingMessageBag;
 
         /// <summary>
-        /// This is a fixed array of 2 bytes that contain the protocol-version, { 0, 1 }.
-        /// TLS Version 1.2, which uses the version { 3, 3 }.
+        /// 当前使用的版本。
         /// </summary>
-        private readonly byte[] m_tlsProtocolVersion = new byte[] { 3, 3 };
-        private readonly byte[] m_netmqtlsProtocolVersion = new byte[] { 0,1 };
+        private byte[] m_ProtocolVersion ;
 
+        /// <summary>
+        /// 服务端支持的版本
+        /// </summary>
+        private readonly List<byte[]> m_SupposeVersions = new List<byte[]>(){
+            new byte[] { 0,1 },
+            new byte[] { 0,2 }
+        };
+        private ConnectionEnd n_ConnectionEnd;
         /// <summary>
         /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
         /// </summary>
@@ -31,9 +37,10 @@ namespace NetMQ.Security.V0_1
         public SecureChannel(ConnectionEnd connectionEnd, Configuration configuration = null)
         {
             m_configuration = configuration ?? new Configuration();
-            m_handshakeLayer = new HandshakeLayer(this, connectionEnd, m_configuration);
+            n_ConnectionEnd = connectionEnd;
+            m_handshakeLayer = new HandshakeLayer(this, connectionEnd);
             m_handshakeLayer.CipherSuiteChange += OnCipherSuiteChangeFromHandshakeLayer;
-            m_recordLayer = new RecordLayer(GetProcolVersion(m_configuration.StandardTLSFormat), m_configuration);
+            m_recordLayer = new RecordLayer();
 
             m_outgoingMessageBag = new OutgoingMessageBag(this);
             if(!m_configuration.VerifyCertificate)
@@ -48,7 +55,7 @@ namespace NetMQ.Security.V0_1
         /// <returns></returns>
         private byte[] GetProcolVersion(bool standardTLSFormat)
         {
-            return standardTLSFormat ? m_tlsProtocolVersion : m_netmqtlsProtocolVersion;
+            return standardTLSFormat ? m_SupposeVersions[1] : m_SupposeVersions[0];
         }
         /// <summary>
         /// Get whether a change-cipher-suite message has arrived.
@@ -132,16 +139,41 @@ namespace NetMQ.Security.V0_1
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Wrong length for protocol version frame");
                 }
-
-                if (!protocolVersionBytes.SequenceEqual(GetProcolVersion(m_configuration.StandardTLSFormat)))
+                if (n_ConnectionEnd == ConnectionEnd.Server && contentType == ContentType.Handshake)
+                {
+                    //第一次握手时
+                    if(m_ProtocolVersion == null)
+                    {
+                        if(m_SupposeVersions.Any(p=>p.SequenceEqual(protocolVersionBytes)))
+                        {
+                            //包含
+                            m_ProtocolVersion = protocolVersionBytes;
+                            m_handshakeLayer.SetProtocolVersion(m_ProtocolVersion);
+                            m_recordLayer.SetProtocolVersion(m_ProtocolVersion);
+                        }
+                        else
+                        {
+                            throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "the protocol version is not supposed");
+                        }
+                    }
+                }
+                //作为服务端首次接收到客户端
+                if (!protocolVersionBytes.SequenceEqual(m_ProtocolVersion))
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "Wrong protocol version");
                 }
-                RemoveLengthAndVersion(incomingMessage);
+                RemoveLength(incomingMessage);
                 if (ChangeSuiteChangeArrived)
                 {
                     incomingMessage = m_recordLayer.DecryptMessage(contentType, incomingMessage);
                 }
+            }
+            else
+            {
+                //作为客户端确定使用的版本号,后续客户端和服务端通讯都要校验版本号一致性。
+                m_ProtocolVersion = GetProcolVersion(m_configuration.StandardTLSFormat);
+                m_handshakeLayer.SetProtocolVersion(m_ProtocolVersion);
+                m_recordLayer.SetProtocolVersion(m_ProtocolVersion);
             }
 
             bool result = false;
@@ -166,14 +198,12 @@ namespace NetMQ.Security.V0_1
             return (SecureChannelReady = result && ChangeSuiteChangeArrived);
         }
 
-        private void RemoveLengthAndVersion(NetMQMessage incomingMessage)
+        private void RemoveLength(NetMQMessage incomingMessage)
         {
             if (m_configuration.StandardTLSFormat)
             {
                 //去除长度
                 NetMQFrame lengthFrame = incomingMessage.Pop();
-                //去除版本号
-                NetMQFrame subVersionFrame = incomingMessage.Pop();
             }
         }
 
@@ -199,7 +229,6 @@ namespace NetMQ.Security.V0_1
                 //增加2个字节长度
                 //增加长度
                 byte[] lengthBytes = new byte[2];
-                encryptedMessage.Push(GetProcolVersion(m_configuration.StandardTLSFormat));
                 encryptedMessage.GetLength(lengthBytes);
                 encryptedMessage.Push(lengthBytes);
             }
@@ -272,7 +301,7 @@ namespace NetMQ.Security.V0_1
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidContentType, "Not an application data message");
             }
-            RemoveLengthAndVersion(cipherMessage);
+            RemoveLength(cipherMessage);
             return m_recordLayer.DecryptMessage(ContentType.ApplicationData, cipherMessage);
         }
 

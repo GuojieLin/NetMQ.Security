@@ -10,8 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="bin\Debug\MailConfigAS310010.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="bin\Debug\cmbc.cer" />
     <None Include="bin\Debug\net35\server.crt" />
     <None Include="bin\Debug\net35\server.pfx" />
+    <None Include="bin\Debug\net40\1.cer" />
     <None Include="bin\Debug\net40\client.pfx" />
     <None Include="bin\Debug\net40\server.pfx" />
   </ItemGroup>

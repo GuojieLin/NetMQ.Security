@@ -1,13 +1,16 @@
-﻿using System;
+﻿using NetMQ.Security.V0_1;
+using NetMQ.Security.V0_1.HandshakeMessages;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
 namespace NetMQ.Security
 {
-    internal static class NetMQMessageExtensions
+    public static class NetMQMessageExtensions
     {
-        internal static void GetLength(this NetMQMessage message, byte[] lengthBytes)
+        public static void GetLength(this NetMQMessage message, byte[] lengthBytes)
         {
             if (lengthBytes.Length > 4) throw new ArgumentException("the Byte Length must less than or equals 4");
             int length = 0;

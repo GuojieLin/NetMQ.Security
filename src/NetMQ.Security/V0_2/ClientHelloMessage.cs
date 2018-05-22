@@ -2,7 +2,7 @@
 using System;
 using System.Diagnostics;
 
-namespace NetMQ.Security.V3_3.HandshakeMessages
+namespace NetMQ.Security.V0_2.HandshakeMessages
 {
     /// <summary>
     /// The ClientHelloMessage is a HandshakeMessage with a HandshakeType of ClientHello.
@@ -12,6 +12,7 @@ namespace NetMQ.Security.V3_3.HandshakeMessages
     /// </summary>
     internal class ClientHelloMessage : V0_1.HandshakeMessages.ClientHelloMessage
     {
+        protected override byte[] Version { get { return new byte[] { 3, 3 }; } }
         /// <summary>
         /// Remove the three frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the HandshakeType, presumed here to be ClientHello,
@@ -23,6 +24,8 @@ namespace NetMQ.Security.V3_3.HandshakeMessages
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             RemoteHandShakeType(message);
+
+            NetMQFrame versionFrame = message.Pop();
             NetMQFrame lengthFrame = message.Pop();
             InnerSetFromNetMQMessage(message);
         }

@@ -1,7 +1,7 @@
 ﻿using NetMQ.Security.V0_1.HandshakeMessages;
 using System.Diagnostics;
 
-namespace NetMQ.Security.V3_3.HandshakeMessages
+namespace NetMQ.Security.V0_2.HandshakeMessages
 {
     /// <summary>
     /// The ClientKeyExchangeMessage is a HandshakeMessage with a HandshakeType of ClientKeyExchange.

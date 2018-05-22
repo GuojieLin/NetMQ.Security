@@ -189,15 +189,22 @@ namespace NetMQ.Security.Tests
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
-            NetMQFrame lastFrame = cipherMessage.Last;
-            cipherMessage.RemoveFrame(lastFrame);
+            NetMQMessage temp = new NetMQMessage(cipherMessage.FrameCount);
+            while(cipherMessage.FrameCount > 4)
+            {
+                temp.Append(cipherMessage.Pop());
+            }
+            NetMQFrame oneBeforeLastLengthFrame = cipherMessage.Pop();
+            NetMQFrame oneBeforeLastFrame = cipherMessage.Pop();
 
-            NetMQFrame oneBeforeLastFrame = cipherMessage.Last;
-            cipherMessage.RemoveFrame(oneBeforeLastFrame);
+            NetMQFrame lastLengthFrame = cipherMessage.Pop();
+            NetMQFrame lastFrame = cipherMessage.Pop();
 
-            cipherMessage.Append(lastFrame);
-            cipherMessage.Append(oneBeforeLastFrame);
-
+            temp.Append(lastLengthFrame);
+            temp.Append(lastFrame);
+            temp.Append(oneBeforeLastLengthFrame);
+            temp.Append(oneBeforeLastFrame);
+            cipherMessage = temp;
             NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
 
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
