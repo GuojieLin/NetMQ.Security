@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using NetMQ.Security;
 using NetMQ.Security.V0_1;
 using NUnit.Framework;
@@ -169,8 +171,10 @@ namespace NetMQ.Security.Tests
                     }
                     List<NetMQMessage> sslMessages;
                     Assert.AreEqual(sum, combineBytes.Length);
-                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(out sslMessages,ref serverChangeCipherSpec);
+                    int offset;
+                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref serverChangeCipherSpec,out offset,out sslMessages);
                     Assert.IsTrue(result);
+                    Assert.AreEqual(offset, combineBytes.Length);
                     Assert.AreEqual(sslMessages.Count, clientOutgoingMessages.Count);
                     for(int i = 0; i < sslMessages.Count; i ++)
                     {
@@ -207,7 +211,9 @@ namespace NetMQ.Security.Tests
                     }
                     List<NetMQMessage> sslMessages;
                     Assert.AreEqual(sum, combineBytes.Length);
-                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(out sslMessages,ref clientChangeCipherSpec);
+                    int offset;
+                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref clientChangeCipherSpec,out offset,out sslMessages);
+                    Assert.AreEqual(offset, combineBytes.Length);
                     Assert.IsTrue(result);
                     Assert.AreEqual(sslMessages.Count, serverOutgoingMessages.Count);
                     for (int i = 0; i < sslMessages.Count; i++)
@@ -231,6 +237,101 @@ namespace NetMQ.Security.Tests
                     serverOutgoingMessages.Clear();
                 }
             }
+        }
+
+
+
+        public void AES256Test()
+        {
+            int FixedIVLength = 0;
+            int EncKeyLength = 32;
+            int BlockLength = 16;
+            int RecordIVLength = 16;
+            SymmetricAlgorithm encryptionBulkAlgorithm  = new AesCryptoServiceProvider
+            {
+                Padding = PaddingMode.None,
+                KeySize = EncKeyLength * 8,
+                BlockSize = BlockLength * 8
+            };
+            SymmetricAlgorithm decryptionBulkAlgorithm  = new AesCryptoServiceProvider
+            {
+                Padding = PaddingMode.None,
+                KeySize = EncKeyLength * 8,
+                BlockSize = BlockLength * 8
+            };
+        }
+
+        /// <summary>
+
+        /// AES加密
+
+        /// </summary>
+
+        /// <param name="encryptStr">明文</param>
+
+        /// <param name="key">密钥</param>
+
+        /// <returns></returns>
+
+        public static string Encrypt(string encryptStr, string key)
+
+        {
+
+            byte[] keyArray = Encoding.UTF8.GetBytes(key);
+
+            byte[] toEncryptArray = Encoding.UTF8.GetBytes(encryptStr);
+
+            RijndaelManaged rDel = new RijndaelManaged();
+
+            rDel.Key = keyArray;
+
+            rDel.Mode = CipherMode.ECB;
+
+            rDel.Padding = PaddingMode.PKCS7;
+
+            ICryptoTransform cTransform = rDel.CreateEncryptor();
+
+            byte[] resultArray = cTransform.TransformFinalBlock(toEncryptArray, 0, toEncryptArray.Length);
+
+            return Convert.ToBase64String(resultArray, 0, resultArray.Length);
+
+        }
+
+
+        /// <summary>
+
+        /// AES解密
+
+        /// </summary>
+
+        /// <param name="decryptStr">密文</param>
+
+        /// <param name="key">密钥</param>
+
+        /// <returns></returns>
+
+        public static string Decrypt(string decryptStr, string key)
+
+        {
+
+            byte[] keyArray = UTF8Encoding.UTF8.GetBytes(key);
+
+            byte[] toEncryptArray = Convert.FromBase64String(decryptStr);
+
+            RijndaelManaged rDel = new RijndaelManaged();
+
+            rDel.Key = keyArray;
+
+            rDel.Mode = CipherMode.ECB;
+
+            rDel.Padding = PaddingMode.PKCS7;
+
+            ICryptoTransform cTransform = rDel.CreateDecryptor();
+
+            byte[] resultArray = cTransform.TransformFinalBlock(toEncryptArray, 0, toEncryptArray.Length);
+
+            return UTF8Encoding.UTF8.GetString(resultArray);
+
         }
     }
 }

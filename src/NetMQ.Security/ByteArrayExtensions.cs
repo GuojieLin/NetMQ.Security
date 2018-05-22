@@ -18,65 +18,78 @@ namespace NetMQ.Security
             Buffer.BlockCopy(bytes2, 0, c, bytes1.Length, bytes2.Length);
             return c;
         }
+        public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, out int offset, out List<NetMQMessage> sslMessages)
+        {
+            sslMessages = new List<NetMQMessage>();
+            offset = 0;
+            do
+            {
+                NetMQMessage  sslMessage;
+                if (GetV0_2RecordLayerNetMQMessage(bytes, ref changeCipherSpec, ref offset, out sslMessage))
+                {
+                    sslMessages.Add(sslMessage);
+                }
+                else
+                {
+                    break;
+                }
+            } while (offset < bytes.Length);
+            return sslMessages.Count > 0;
+        }
         /// <summary>
         /// 将字节数组解析出ssl record layer格式。V3_3
         /// </summary>
         /// <param name="bytes"></param>
         /// <returns></returns>
-        public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, out List<NetMQMessage> sslMessages, ref bool changeCipherSpec)
+        public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, ref int offset, out NetMQMessage sslMessage)
         {
-            sslMessages = new List<NetMQMessage>();
-            int offset = 0;
-            do
+            if (bytes.Length - offset < 5)
             {
-                if (bytes.Length - offset < 5)
-                {
-                    //长度至少要有5位
-                    //ContentType (1,handshake:22)
-                    //ProtocolVersion(2)
-                    //握手协议长度：(2)
-                    //握手协议数据
-                    sslMessages = null;
-                    return false;
-                }
-                NetMQMessage sslMessage = new NetMQMessage();
-                byte[] contentTypeBytes = new byte[Constants.CONTENT_TYPE_LENGTH];
-                //get content type
-                Buffer.BlockCopy(bytes, offset, contentTypeBytes, 0, Constants.CONTENT_TYPE_LENGTH);
-                offset += Constants.CONTENT_TYPE_LENGTH;
-                byte[] protocolVersionBytes = new byte[Constants.PROTOCOL_VERSION_LENGTH];
-                //get protocol version
-                Buffer.BlockCopy(bytes, offset, protocolVersionBytes, 0, Constants.PROTOCOL_VERSION_LENGTH);
-                offset += Constants.PROTOCOL_VERSION_LENGTH;
-                byte[] handshakeLengthBytes = new byte[Constants.HAND_SHAKE_LENGTH];
-                //get hand shake layer
-                //0012->1200->2100
-                Buffer.BlockCopy(bytes, offset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
-                offset += Constants.HAND_SHAKE_LENGTH;
-                //交换2个字节位置。
-                byte[] temp = new byte[4];
-                temp[1] = handshakeLengthBytes[0];
-                temp[0] = handshakeLengthBytes[1];
-                //由于生成长度是BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian。
-                //在解析长度时需要转回来。
-                //一定要4位才行
-                int length = BitConverter.ToInt32(temp, 0);
-                //解析handshake长度
-                if (offset + length > bytes.Length)
-                {
-                    //接收到的数据长度不够，可能发送拆包。等后续包过来。
-                    return false;
-                }
-                sslMessage.Append(contentTypeBytes);
-                sslMessage.Append(protocolVersionBytes);
-                sslMessage.Append(handshakeLengthBytes);
-                byte[] handShakeLayerBytes = new byte[length];
-                Buffer.BlockCopy(bytes, offset, handShakeLayerBytes, 0, length);
-                offset += length;
-                //解析handShakeLayer
-                GetNextLayer(contentTypeBytes, handShakeLayerBytes, sslMessage, ref changeCipherSpec);
-                sslMessages.Add(sslMessage);
-            } while (offset < bytes.Length);
+                //长度至少要有5位
+                //ContentType (1,handshake:22)
+                //ProtocolVersion(2)
+                //握手协议长度：(2)
+                //握手协议数据
+                sslMessage = null;
+                return false;
+            }
+            sslMessage = new NetMQMessage();
+            byte[] contentTypeBytes = new byte[Constants.CONTENT_TYPE_LENGTH];
+            //get content type
+            Buffer.BlockCopy(bytes, offset, contentTypeBytes, 0, Constants.CONTENT_TYPE_LENGTH);
+            offset += Constants.CONTENT_TYPE_LENGTH;
+            byte[] protocolVersionBytes = new byte[Constants.PROTOCOL_VERSION_LENGTH];
+            //get protocol version
+            Buffer.BlockCopy(bytes, offset, protocolVersionBytes, 0, Constants.PROTOCOL_VERSION_LENGTH);
+            offset += Constants.PROTOCOL_VERSION_LENGTH;
+            byte[] handshakeLengthBytes = new byte[Constants.HAND_SHAKE_LENGTH];
+            //get hand shake layer
+            //0012->1200->2100
+            Buffer.BlockCopy(bytes, offset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
+            offset += Constants.HAND_SHAKE_LENGTH;
+            //交换2个字节位置。
+            byte[] temp = new byte[4];
+            temp[1] = handshakeLengthBytes[0];
+            temp[0] = handshakeLengthBytes[1];
+            //由于生成长度是BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian。
+            //在解析长度时需要转回来。
+            //一定要4位才行
+            int length = BitConverter.ToInt32(temp, 0);
+            //解析handshake长度
+            if (offset + length > bytes.Length)
+            {
+                sslMessage = null;
+                //接收到的数据长度不够，可能发送拆包。等后续包过来。
+                return false;
+            }
+            sslMessage.Append(contentTypeBytes);
+            sslMessage.Append(protocolVersionBytes);
+            sslMessage.Append(handshakeLengthBytes);
+            byte[] handShakeLayerBytes = new byte[length];
+            Buffer.BlockCopy(bytes, offset, handShakeLayerBytes, 0, length);
+            offset += length;
+            //解析handShakeLayer
+            GetNextLayer(contentTypeBytes, handShakeLayerBytes, sslMessage, ref changeCipherSpec);
             return true;
         }
 
