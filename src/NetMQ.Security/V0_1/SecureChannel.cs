@@ -60,7 +60,7 @@ namespace NetMQ.Security.V0_1
         /// <summary>
         /// Get whether a change-cipher-suite message has arrived.
         /// </summary>
-        internal bool ChangeSuiteChangeArrived { get; private set; }
+        public bool ChangeSuiteChangeArrived { get; private set; }
 
         /// <summary>
         /// Get whether this SecureChannel is ready to exchange content messages.

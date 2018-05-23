@@ -20,6 +20,10 @@
     <None Include="bin\Debug\net40\1.cer" />
     <None Include="bin\Debug\net40\client.pfx" />
     <None Include="bin\Debug\net40\server.pfx" />
+    <None Include="bin\Debug\net45\server.crt" />
+    <None Include="bin\Debug\net45\server.pfx" />
+    <None Include="bin\Debug\net462\server.crt" />
+    <None Include="bin\Debug\net462\server.pfx" />
   </ItemGroup>
 
   <ItemGroup>
