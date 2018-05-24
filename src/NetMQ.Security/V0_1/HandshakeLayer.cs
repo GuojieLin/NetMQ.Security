@@ -346,6 +346,7 @@ namespace NetMQ.Security.V0_1
                 new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage ();
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
+            serverHelloMessage.SessionID = new byte[SessionIdLength];
             m_rng.GetBytes(serverHelloMessage.RandomNumber);
 
             SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;

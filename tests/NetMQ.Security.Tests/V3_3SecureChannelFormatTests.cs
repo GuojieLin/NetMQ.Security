@@ -239,6 +239,44 @@ namespace NetMQ.Security.Tests
             }
         }
 
+        [Test]
+        public void MultipartMessage()
+        {
+            NetMQMessage plainMessage = new NetMQMessage();
+            plainMessage.Append("Hello");
+            plainMessage.Append("World");
+
+            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+
+
+            byte[] combineBytes= new byte[0];
+            int sum = 0;
+            foreach (var frame in cipherMessage)
+            {
+                combineBytes = combineBytes.Combine(frame.Buffer);
+                sum += frame.BufferSize;
+            }
+            List<NetMQMessage> sslMessages;
+            Assert.AreEqual(sum, combineBytes.Length);
+            int offset;
+            bool serverChangeCipherSpec = m_serverSecureChannel.ChangeSuiteChangeArrived;
+            bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref serverChangeCipherSpec,out offset,out sslMessages);
+            Assert.IsTrue(result);
+            Assert.AreEqual(offset, combineBytes.Length);
+            Assert.AreEqual(sslMessages.Count, 1);
+            for (int j = 0; j < sslMessages[0].FrameCount; j++)
+            {
+                Assert.AreEqual(sslMessages[0][j].Buffer, cipherMessage[j].Buffer);
+            }
+
+
+            NetMQMessage decryptedMessage = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0]);
+            Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage[0].ConvertToString());
+            Assert.AreEqual(decryptedMessage[1].ConvertToString(), plainMessage[1].ConvertToString());
+            Assert.AreEqual(decryptedMessage[0].ConvertToString(), "Hello");
+            Assert.AreEqual(decryptedMessage[1].ConvertToString(), "World");
+        }
+
 
 
         public void AES256Test()

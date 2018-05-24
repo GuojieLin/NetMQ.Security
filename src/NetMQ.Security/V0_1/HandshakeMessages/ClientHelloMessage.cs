@@ -39,7 +39,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 3.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 5)
+            if (message.FrameCount != 3)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
@@ -47,8 +47,6 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
 
-            NetMQFrame sessionIdLengthFrame = message.Pop();
-            NetMQFrame sessionIdFrame = message.Pop();
             // get the length of the cipher-suites array
             NetMQFrame ciphersLengthFrame = message.Pop();
 
@@ -77,12 +75,8 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             NetMQMessage message = AddHandShakeType();
             message.Append(RandomNumber);
 
-            var bytes = BitConverter.GetBytes(SessionID.Length);
-            message.Append(new byte[1] { bytes[0] });
-            //目前是空的，暂不支持sessionid
-            message.Append(SessionID);
             int length = 2 * CipherSuites.Length;
-            bytes = BitConverter.GetBytes(length);
+            byte[] bytes = BitConverter.GetBytes(length);
             message.Append(new byte[2] { bytes[1], bytes[0] });
 
             byte[] cipherSuitesBytes = new byte[length];

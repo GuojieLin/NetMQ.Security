@@ -1,4 +1,6 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using System;
+
+namespace NetMQ.Security.V0_1.HandshakeMessages
 {
     /// <summary>
     /// The ServerHelloMessage is a HandshakeMessage with a <see cref="HandshakeType"/>of ServerHello.
@@ -18,6 +20,7 @@
         /// Get or set the Random-Number that is a part of the handshake-protocol, as a byte-array.
         /// </summary>
         public byte[] RandomNumber { get; set; }
+        public byte[] SessionID { get; set; }
 
         /// <summary>
         /// Get or set the byte that specifies the cipher-suite to be used.
@@ -42,7 +45,6 @@
             // Get the random number
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
-
             // Get the cipher suite
             NetMQFrame cipherSuiteFrame = message.Pop();
             CipherSuite = (CipherSuite)cipherSuiteFrame.Buffer[1];

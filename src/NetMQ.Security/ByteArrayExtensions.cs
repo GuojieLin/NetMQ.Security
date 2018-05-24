@@ -240,7 +240,22 @@ namespace NetMQ.Security
             GetHandShakeContentLength(bytes, ref offset, sslMessage);
             GetProtocolVersion(bytes, ref offset, sslMessage);
             GetRandom(bytes, ref offset, sslMessage);
+            GetSessionId(bytes, ref offset, sslMessage);
 
+            byte[] cipherSuiteslengthBytes = new byte[Constants.CIPHER_SUITES_LENGTH];
+            //get Cipher Suites Length version
+            Buffer.BlockCopy(bytes, offset, cipherSuiteslengthBytes, 0, Constants.CIPHER_SUITES_LENGTH);
+            sslMessage.Append(cipherSuiteslengthBytes);
+            offset += Constants.CIPHER_SUITES_LENGTH;
+
+            byte[] cipherSuitesBytes = new byte[bytes.Length - offset];
+            //get Cipher Suites version
+            Buffer.BlockCopy(bytes, offset, cipherSuitesBytes, 0, bytes.Length - offset);
+            sslMessage.Append(cipherSuitesBytes);
+        }
+
+        private static void GetSessionId(byte[] bytes, ref int offset, NetMQMessage sslMessage)
+        {
             byte[] sessionIdLengthBytes = new byte[Constants.SESSION_ID_LENGTH];
             //get random version
             Buffer.BlockCopy(bytes, offset, sessionIdLengthBytes, 0, Constants.SESSION_ID_LENGTH);
@@ -255,18 +270,8 @@ namespace NetMQ.Security
             Buffer.BlockCopy(bytes, offset, sessionIdBytes, 0, length);
             offset += length;
             sslMessage.Append(sessionIdBytes);
-
-            byte[] cipherSuiteslengthBytes = new byte[Constants.CIPHER_SUITES_LENGTH];
-            //get Cipher Suites Length version
-            Buffer.BlockCopy(bytes, offset, cipherSuiteslengthBytes, 0, Constants.CIPHER_SUITES_LENGTH);
-            sslMessage.Append(cipherSuiteslengthBytes);
-            offset += Constants.CIPHER_SUITES_LENGTH;
-
-            byte[] cipherSuitesBytes = new byte[bytes.Length - offset];
-            //get Cipher Suites version
-            Buffer.BlockCopy(bytes, offset, cipherSuitesBytes, 0, bytes.Length - offset);
-            sslMessage.Append(cipherSuitesBytes);
         }
+
         /// <summary>
         /// 解析ServerHello格式
         /// </summary>
@@ -282,6 +287,8 @@ namespace NetMQ.Security
             GetProtocolVersion(bytes, ref offset, sslMessage);
 
             GetRandom(bytes, ref offset, sslMessage);
+
+            GetSessionId(bytes, ref offset, sslMessage);
 
             byte[] cipherSuiteBytes = new byte[Constants.CIPHER_SUITE_LENGTH];
             //get Cipher Suites Length version
