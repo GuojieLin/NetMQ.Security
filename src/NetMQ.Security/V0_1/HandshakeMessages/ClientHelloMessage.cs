@@ -55,7 +55,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             byte[] temp = new byte[2];
             temp[1] = ciphersLengthFrame.Buffer[0];
             temp[0] = ciphersLengthFrame.Buffer[1];
-            int ciphersLength = BitConverter.ToInt16(temp, 0);
+            int ciphersLength = BitConverter.ToInt16(temp, 0) / 2;
 
             // get the cipher-suites
             NetMQFrame ciphersFrame = message.Pop();
@@ -81,11 +81,11 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             message.Append(new byte[1] { bytes[0] });
             //目前是空的，暂不支持sessionid
             message.Append(SessionID);
-
-            bytes = BitConverter.GetBytes(CipherSuites.Length);
+            int length = 2 * CipherSuites.Length;
+            bytes = BitConverter.GetBytes(length);
             message.Append(new byte[2] { bytes[1], bytes[0] });
 
-            byte[] cipherSuitesBytes = new byte[2 * CipherSuites.Length];
+            byte[] cipherSuitesBytes = new byte[length];
             int bytesIndex = 0;
 
             foreach (CipherSuite cipherSuite in CipherSuites)
