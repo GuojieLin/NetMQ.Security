@@ -10,7 +10,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
     /// </summary>
     internal class ServerHelloMessage : V0_1.HandshakeMessages.ServerHelloMessage
     {
-        protected override byte[] Version { get { return new byte[] { 3, 3 }; } }
+        protected override byte[] Version { get { return Constants.V0_2; } }
         /// <summary>
         /// Remove the three frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the <see cref="HandshakeType"/>,
@@ -21,11 +21,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 2.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            RemoteHandShakeType(message);
-
-            NetMQFrame versionFrame = message.Pop();
-            NetMQFrame lengthFrame = message.Pop();
-            InnerSetFromNetMQMessage(message);
+            base.SetFromNetMQMessage(message);
         }
 
         /// <summary>
@@ -38,7 +34,10 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = base.ToNetMQMessage();
+            var handShakeType = message.Pop();
+            message.Push(Version);
             InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }

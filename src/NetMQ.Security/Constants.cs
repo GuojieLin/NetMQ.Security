@@ -14,6 +14,7 @@ namespace NetMQ.Security
 
         public const int HAND_SHAKE_TYPE = 1;
         public const int HAND_SHAKE_CONTENT_LENGTH = 3;
+        public const int SESSION_ID_LENGTH = 1;
         public const int RANDOM_LENGTH = 32;
         public const int CIPHER_SUITES_LENGTH = 2;
         public const int CIPHER_SUITE_LENGTH = 2;
@@ -25,5 +26,23 @@ namespace NetMQ.Security
 
         public static byte[] V0_1 = new byte[2]{0,1};
         public static byte[] V0_2 = new byte[2]{0,2};
+        public static byte[] V3_3 = new byte[2]{3,3};
+
+
+        /// <summary>
+        /// 服务端支持的版本,目前只支持3,3
+        /// </summary>
+        public static readonly List<byte[]> SupposeVersions = new List<byte[]>(){
+            new byte[] { 0,1 },
+            new byte[] { 3,3}
+        };
+        /// <summary>
+        /// 0,1是NetMQ的包格式
+        /// 0,2是标准的包格式
+        /// </summary>
+        public static readonly List<byte[]> SupposeSubVersions = new List<byte[]>(){
+            new byte[] { 0,1 },
+            new byte[] { 0,2}
+        };
     }
 }

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <None Include="bin\Debug\net451\server.pfx" />
+    <None Include="bin\Release\net451\server.pfx" />
   </ItemGroup>
 
   <ItemGroup>

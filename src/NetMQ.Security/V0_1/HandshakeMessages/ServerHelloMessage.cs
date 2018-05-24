@@ -7,7 +7,7 @@
     /// </summary>
     internal class ServerHelloMessage : HandshakeMessage
     {
-        protected virtual byte[] Version { get { return new byte[] { 0, 1 }; } }
+        protected virtual byte[] Version { get { return Constants.V0_1; } }
         /// <summary>
         /// Get the part of the handshake-protocol that this HandshakeMessage represents
         /// - in this case, ServerHello.
@@ -34,12 +34,6 @@
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 2.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            RemoteHandShakeType(message);
-            NetMQFrame versionFrame = message.Pop();
-            InnerSetFromNetMQMessage(message);
-        }
-        protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
-        {
             if (message.FrameCount != 2)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
@@ -52,8 +46,8 @@
             // Get the cipher suite
             NetMQFrame cipherSuiteFrame = message.Pop();
             CipherSuite = (CipherSuite)cipherSuiteFrame.Buffer[1];
-        }
 
+        }
         /// <summary>
         /// Return a new NetMQMessage that holds three frames:
         /// 1. contains a byte with the <see cref="HandshakeType"/>,
@@ -64,7 +58,6 @@
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
-            message.Append(Version);
             message.Append(RandomNumber);
             message.Append(new byte[] { 0, (byte)CipherSuite });
 

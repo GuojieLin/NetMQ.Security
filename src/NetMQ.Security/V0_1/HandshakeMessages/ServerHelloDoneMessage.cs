@@ -19,11 +19,6 @@
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 0.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            RemoteHandShakeType(message);
-            InnerSetFromNetMQMessage(message);
-        }
-        protected virtual void InnerSetFromNetMQMessage(NetMQMessage message)
-        {
             if (message.FrameCount != 0)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");

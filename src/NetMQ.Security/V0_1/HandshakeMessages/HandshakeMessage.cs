@@ -73,12 +73,9 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         }
         public void InsertLength(NetMQMessage message)
         {
-            var handShakeType = message.Pop();
-
             byte[] lengthBytes= new byte[3];
             GetLength(lengthBytes, message);
             message.Push(lengthBytes);
-            message.Push(handShakeType);
         }
         /// <summary>
         /// 获取NetMQFrame数组的总字节数,填充到lengthBytes中。
@@ -88,21 +85,6 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         public virtual void GetLength(byte[] lengthBytes ,NetMQMessage message)
         {
             message.GetLength(lengthBytes);
-        }
-        /// <summary>
-        /// Remove the first frame from the given NetMQMessage.
-        /// </summary>
-        /// <param name="message">a NetMQMessage - which needs to have at least one frame</param>
-        /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must not be 0.</exception>
-        protected void RemoteHandShakeType(NetMQMessage message)
-        {
-            if (message.FrameCount == 0)
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
-            }
-
-            // remove the handshake type column
-            message.Pop();
         }
     }
 }

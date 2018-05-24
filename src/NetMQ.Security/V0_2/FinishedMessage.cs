@@ -18,9 +18,8 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 1.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            RemoteHandShakeType(message);
             NetMQFrame lengthFrame = message.Pop();
-            InnerSetFromNetMQMessage(message);
+            base.SetFromNetMQMessage(message);
         }
 
         /// <summary>
@@ -32,7 +31,9 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = base.ToNetMQMessage();
+            var handShakeType = message.Pop();
             InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }

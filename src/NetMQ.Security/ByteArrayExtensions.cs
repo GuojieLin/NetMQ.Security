@@ -68,13 +68,13 @@ namespace NetMQ.Security
             Buffer.BlockCopy(bytes, offset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
             offset += Constants.HAND_SHAKE_LENGTH;
             //交换2个字节位置。
-            byte[] temp = new byte[4];
+            byte[] temp = new byte[2];
             temp[1] = handshakeLengthBytes[0];
             temp[0] = handshakeLengthBytes[1];
             //由于生成长度是BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian。
             //在解析长度时需要转回来。
             //一定要4位才行
-            int length = BitConverter.ToInt32(temp, 0);
+            int length = BitConverter.ToInt16(temp, 0);
             //解析handshake长度
             if (offset + length > bytes.Length)
             {
@@ -240,6 +240,21 @@ namespace NetMQ.Security
             GetHandShakeContentLength(bytes, ref offset, sslMessage);
             GetProtocolVersion(bytes, ref offset, sslMessage);
             GetRandom(bytes, ref offset, sslMessage);
+
+            byte[] sessionIdLengthBytes = new byte[Constants.SESSION_ID_LENGTH];
+            //get random version
+            Buffer.BlockCopy(bytes, offset, sessionIdLengthBytes, 0, Constants.SESSION_ID_LENGTH);
+            sslMessage.Append(sessionIdLengthBytes);
+            offset += Constants.SESSION_ID_LENGTH;
+
+            byte[] tempLength = new byte[2];
+            tempLength[1] = sessionIdLengthBytes[0];
+            int length = BitConverter.ToInt16(tempLength, 0);
+
+            byte[] sessionIdBytes = new byte[length];
+            Buffer.BlockCopy(bytes, offset, sessionIdBytes, 0, length);
+            offset += length;
+            sslMessage.Append(sessionIdBytes);
 
             byte[] cipherSuiteslengthBytes = new byte[Constants.CIPHER_SUITES_LENGTH];
             //get Cipher Suites Length version

@@ -12,7 +12,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
     /// </summary>
     internal class ClientHelloMessage : V0_1.HandshakeMessages.ClientHelloMessage
     {
-        protected override byte[] Version { get { return new byte[] { 3, 3 }; } }
+        protected override byte[] Version { get { return Constants.V0_2 ; } }
         /// <summary>
         /// Remove the three frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the HandshakeType, presumed here to be ClientHello,
@@ -21,15 +21,36 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// </summary>
         /// <param name="message">a NetMQMessage - which must have 2 frames</param>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 3.</exception>
+
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            RemoteHandShakeType(message);
+            if (message.FrameCount != 5)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
+            }
+            // get the random number
+            NetMQFrame randomNumberFrame = message.Pop();
+            RandomNumber = randomNumberFrame.ToByteArray();
 
-            NetMQFrame versionFrame = message.Pop();
-            NetMQFrame lengthFrame = message.Pop();
-            InnerSetFromNetMQMessage(message);
+            NetMQFrame sessionIdLengthFrame = message.Pop();
+            NetMQFrame sessionIdFrame = message.Pop();
+            SessionID = sessionIdFrame.ToByteArray();
+            // get the length of the cipher-suites array
+            NetMQFrame ciphersLengthFrame = message.Pop();
+
+            byte[] temp = new byte[2];
+            temp[1] = ciphersLengthFrame.Buffer[0];
+            temp[0] = ciphersLengthFrame.Buffer[1];
+            int ciphersLength = BitConverter.ToInt16(temp, 0);
+
+            // get the cipher-suites
+            NetMQFrame ciphersFrame = message.Pop();
+            CipherSuites = new CipherSuite[ciphersLength];
+            for (int i = 0; i < ciphersLength; i++)
+            {
+                CipherSuites[i] = (CipherSuite)ciphersFrame.Buffer[i * 2 + 1];
+            }
         }
-
         /// <summary>
         /// Return a new NetMQMessage that holds three frames:
         /// 1. a frame with a single byte representing the HandshakeType, which is ClientHello,
@@ -40,7 +61,10 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = base.ToNetMQMessage();
+            var handShakeType = message.Pop();
+            message.Push(Version);
             InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }
