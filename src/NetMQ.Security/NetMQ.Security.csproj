@@ -8,22 +8,22 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.0.6</Version>
+    <Version>0.2.0.8</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.0.6</AssemblyVersion>
+    <AssemblyVersion>0.2.0.8</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.0.6</FileVersion>
-    <PackageReleaseNotes>ChangeSuiteChangeArrived修饰符改为public</PackageReleaseNotes>
+    <FileVersion>0.2.0.8</FileVersion>
+    <PackageReleaseNotes>更新NetMQ包</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="10.1.5">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="NetMQ" Version="4.0.1.1" />
+    <PackageReference Include="NetMQ" Version="4.0.1.2" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">

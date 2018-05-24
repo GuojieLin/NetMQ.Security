@@ -21,6 +21,14 @@ namespace NetMQ.Security
         /// </summary>
         public bool StandardTLSFormat { get; set; }
 
+        /// <summary>
+        /// 私钥路径
+        /// </summary>
+        public string CertificatePath { get; set; }
+        /// <summary>
+        /// 私钥密码
+        /// </summary>
+        public string CertificatePassword { get; set; }
 
         public Configuration()
         {
