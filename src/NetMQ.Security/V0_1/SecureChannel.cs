@@ -224,7 +224,7 @@ namespace NetMQ.Security.V0_1
         internal NetMQMessage InternalEncryptAndWrapMessage(ContentType contentType, NetMQMessage plainMessage)
         {
             NetMQMessage encryptedMessage = m_recordLayer.EncryptMessage(contentType, plainMessage);
-            if(Configuration.StandardTLSFormat)
+            if(ProtocolVersion.SequenceEqual(Constants.V3_3))
             {
                 //增加2个字节长度
                 //增加长度
@@ -258,6 +258,23 @@ namespace NetMQ.Security.V0_1
             }
 
             return InternalEncryptAndWrapMessage(ContentType.ApplicationData, plainMessage);
+        }
+        /// <summary>
+        /// Encrypt the given NetMQMessage, wrapping it's content as application-data and prefixing it with the encryption protocol.
+        /// </summary>
+        /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
+        /// <returns>a new NetMQMessage that is encrypted</returns>
+        /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
+        /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
+        public NetMQMessage EncryptApplicationBytes([NotNull] byte [] plainBytes)
+        {
+            if (plainBytes == null)
+            {
+                throw new ArgumentNullException(nameof(plainBytes));
+            }
+            NetMQMessage plainMessage = new NetMQMessage();
+            plainMessage.Append(plainBytes);
+            return EncryptApplicationMessage(plainMessage);
         }
 
         /// <summary>

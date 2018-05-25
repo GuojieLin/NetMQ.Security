@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using NetMQ.Security;
+using NetMQ.Security.Extensions;
 using NetMQ.Security.V0_1;
 using NUnit.Framework;
 

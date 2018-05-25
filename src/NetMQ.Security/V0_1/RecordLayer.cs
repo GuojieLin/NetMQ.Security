@@ -181,7 +181,7 @@ namespace NetMQ.Security.V0_1
                 byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
 
                 var iv = GenerateIV(encryptor, seqNumBytes);
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                 {
                     //增加长度2个字符
                     var lengthBytes = BitConverter.GetBytes(iv.Length);
@@ -196,14 +196,14 @@ namespace NetMQ.Security.V0_1
                 byte[] frameBytes = new byte[12];
                 Buffer.BlockCopy(seqNumBytes, 0, frameBytes, 0, 8);
                 int frameCount = plainMessage.FrameCount;
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                 {
                     frameCount += plainMessage.FrameCount;
                 }
                 Buffer.BlockCopy(BitConverter.GetBytes(frameCount), 0, frameBytes, 8, 4);
 
                 byte[] cipherSeqNumBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, frameBytes);
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                 {
                     //增加长度2个字符
                     var lengthBytes = BitConverter.GetBytes(cipherSeqNumBytes.Length);
@@ -216,7 +216,7 @@ namespace NetMQ.Security.V0_1
                 foreach (NetMQFrame plainFrame in plainMessage)
                 {
                     byte[] cipherBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, plainFrame.ToByteArray());
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                     {
                         //增加长度2个字符
                         var lengthBytes = BitConverter.GetBytes(cipherBytes.Length);
@@ -340,7 +340,7 @@ namespace NetMQ.Security.V0_1
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "cipher message should have at least 2 frames, iv and sequence number");
             }
 
-            if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+            if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
             {
                 NetMQFrame ivLengthFrame = cipherMessage.Pop();
             }
@@ -352,7 +352,7 @@ namespace NetMQ.Security.V0_1
             {
                 NetMQMessage plainMessage = new NetMQMessage();
 
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                 {
                     NetMQFrame seqNumFrameLength = cipherMessage.Pop();
                 }
@@ -386,7 +386,7 @@ namespace NetMQ.Security.V0_1
                 for(int i = 0; i < cipherMessage.FrameCount; i++)
                 {
 
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V0_2))
+                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                     {
                         i++;
                     }

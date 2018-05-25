@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace NetMQ.Security
+namespace NetMQ.Security.Extensions
 {
     public static class ByteArrayExtensions
     {
@@ -25,7 +25,7 @@ namespace NetMQ.Security
             do
             {
                 NetMQMessage  sslMessage;
-                if (GetV0_2RecordLayerNetMQMessage(bytes, ref changeCipherSpec, ref offset, out sslMessage))
+                if (bytes.GetV0_2RecordLayerNetMQMessage(ref changeCipherSpec, ref offset, out sslMessage))
                 {
                     sslMessages.Add(sslMessage);
                 }

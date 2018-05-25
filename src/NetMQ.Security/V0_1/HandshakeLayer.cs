@@ -252,8 +252,8 @@ namespace NetMQ.Security.V0_1
         private void OnHelloRequest(OutgoingMessageBag outgoingMessages)
         {
             //客户端根据配置决定握手层版本号
-            SubProtocolVersion = m_secureChannel.Configuration.StandardTLSFormat? Constants.V0_2:Constants.V0_1;
-            var clientHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            SubProtocolVersion = m_secureChannel.Configuration.StandardTLSFormat? Constants.V3_3:Constants.V0_1;
+            var clientHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ClientHelloMessage():
                 new ClientHelloMessage();
             clientHelloMessage.RandomNumber = new byte[RandomNumberLength];
@@ -302,7 +302,7 @@ namespace NetMQ.Security.V0_1
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
             }
             //获取保存子协议版本
-            var clientHelloMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var clientHelloMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ClientHelloMessage():
                new ClientHelloMessage();
 
@@ -319,7 +319,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloDone(OutgoingMessageBag outgoingMessages)
         {
-            var serverHelloDoneMessage = SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var serverHelloDoneMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ServerHelloDoneMessage():
                 new ServerHelloDoneMessage();
             NetMQMessage outgoingMessage = serverHelloDoneMessage.ToNetMQMessage();
@@ -330,7 +330,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddCertificateMessage(OutgoingMessageBag outgoingMessages)
         {
-            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.CertificateMessage():
                 new CertificateMessage ();
             certificateMessage.Certificate = LocalCertificate;
@@ -342,7 +342,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
         {
-            var serverHelloMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var serverHelloMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage ();
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
@@ -397,7 +397,7 @@ namespace NetMQ.Security.V0_1
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
             }
-            var serverHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var serverHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage();
             serverHelloMessage.SetFromNetMQMessage(incomingMessage);
@@ -419,7 +419,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.CertificateMessage():
                 new CertificateMessage();
             certificateMessage.SetFromNetMQMessage(incomingMessage);
@@ -445,7 +445,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var serverHelloDoneMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var serverHelloDoneMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ServerHelloDoneMessage():
                 new ServerHelloDoneMessage();
             serverHelloDoneMessage.SetFromNetMQMessage(incomingMessage);
@@ -459,7 +459,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
         {
-            var clientKeyExchangeMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var clientKeyExchangeMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ClientKeyExchangeMessage():
                 new ClientKeyExchangeMessage();
 
@@ -488,7 +488,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var clientKeyExchangeMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var clientKeyExchangeMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.ClientKeyExchangeMessage():
                 new ClientKeyExchangeMessage();
             clientKeyExchangeMessage.SetFromNetMQMessage(incomingMessage);
@@ -523,7 +523,7 @@ namespace NetMQ.Security.V0_1
             }
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var finishedMessage =SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var finishedMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.FinishedMessage():
                 new FinishedMessage();
             finishedMessage.SetFromNetMQMessage(incomingMessage);
@@ -568,7 +568,7 @@ namespace NetMQ.Security.V0_1
 
             var label = SecurityParameters.Entity == ConnectionEnd.Server ? ServerFinishedLabel : ClientFinshedLabel;
 
-            var finishedMessage = SubProtocolVersion.SequenceEqual(Constants.V0_2)?
+            var finishedMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
                 new V0_2.HandshakeMessages.FinishedMessage():
                 new FinishedMessage();
             finishedMessage.VerifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);

@@ -25,24 +25,17 @@ namespace NetMQ.Security
         public const int CONTENT_LENGTH = 2;
 
         public static byte[] V0_1 = new byte[2]{0,1};
-        public static byte[] V0_2 = new byte[2]{0,2};
         public static byte[] V3_3 = new byte[2]{3,3};
 
 
         /// <summary>
         /// 服务端支持的版本,目前只支持3,3
         /// </summary>
-        public static readonly List<byte[]> SupposeVersions = new List<byte[]>(){
-            new byte[] { 0,1 },
-            new byte[] { 3,3}
-        };
+        public static readonly List<byte[]> SupposeVersions = new List<byte[]>(){V0_1,V3_3 };
         /// <summary>
         /// 0,1是NetMQ的包格式
         /// 0,2是标准的包格式
         /// </summary>
-        public static readonly List<byte[]> SupposeSubVersions = new List<byte[]>(){
-            new byte[] { 0,1 },
-            new byte[] { 0,2}
-        };
+        public static readonly List<byte[]> SupposeSubVersions = new List<byte[]>(){V0_1,V3_3};
     }
 }

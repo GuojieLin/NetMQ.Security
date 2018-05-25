@@ -11,7 +11,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
     /// </summary>
     internal class ServerHelloMessage : V0_1.HandshakeMessages.ServerHelloMessage
     {
-        protected override byte[] Version { get { return Constants.V0_2; } }
+        protected override byte[] Version { get { return Constants.V3_3; } }
         /// <summary>
         /// Remove the three frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the <see cref="HandshakeType"/>,
