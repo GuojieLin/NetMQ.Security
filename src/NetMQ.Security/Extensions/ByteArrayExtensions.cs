@@ -43,7 +43,9 @@ namespace NetMQ.Security.Extensions
         /// <returns></returns>
         public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, ref int offset, out NetMQMessage sslMessage)
         {
-            if (bytes.Length - offset < 5)
+            //用一个临时遍历保存偏移量，只有这个当前解析成功才偏移。
+            int tempOffset = offset;
+            if (bytes.Length - tempOffset < 5)
             {
                 //长度至少要有5位
                 //ContentType (1,handshake:22)
@@ -56,17 +58,17 @@ namespace NetMQ.Security.Extensions
             sslMessage = new NetMQMessage();
             byte[] contentTypeBytes = new byte[Constants.CONTENT_TYPE_LENGTH];
             //get content type
-            Buffer.BlockCopy(bytes, offset, contentTypeBytes, 0, Constants.CONTENT_TYPE_LENGTH);
-            offset += Constants.CONTENT_TYPE_LENGTH;
+            Buffer.BlockCopy(bytes, tempOffset, contentTypeBytes, 0, Constants.CONTENT_TYPE_LENGTH);
+            tempOffset += Constants.CONTENT_TYPE_LENGTH;
             byte[] protocolVersionBytes = new byte[Constants.PROTOCOL_VERSION_LENGTH];
             //get protocol version
-            Buffer.BlockCopy(bytes, offset, protocolVersionBytes, 0, Constants.PROTOCOL_VERSION_LENGTH);
-            offset += Constants.PROTOCOL_VERSION_LENGTH;
+            Buffer.BlockCopy(bytes, tempOffset, protocolVersionBytes, 0, Constants.PROTOCOL_VERSION_LENGTH);
+            tempOffset += Constants.PROTOCOL_VERSION_LENGTH;
             byte[] handshakeLengthBytes = new byte[Constants.HAND_SHAKE_LENGTH];
             //get hand shake layer
             //0012->1200->2100
-            Buffer.BlockCopy(bytes, offset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
-            offset += Constants.HAND_SHAKE_LENGTH;
+            Buffer.BlockCopy(bytes, tempOffset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
+            tempOffset += Constants.HAND_SHAKE_LENGTH;
             //交换2个字节位置。
             byte[] temp = new byte[2];
             temp[1] = handshakeLengthBytes[0];
@@ -74,9 +76,9 @@ namespace NetMQ.Security.Extensions
             //由于生成长度是BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian。
             //在解析长度时需要转回来。
             //一定要4位才行
-            int length = BitConverter.ToInt16(temp, 0);
+            int length = BitConverter.ToUInt16(temp, 0);
             //解析handshake长度
-            if (offset + length > bytes.Length)
+            if (tempOffset + length > bytes.Length)
             {
                 sslMessage = null;
                 //接收到的数据长度不够，可能发送拆包。等后续包过来。
@@ -86,10 +88,11 @@ namespace NetMQ.Security.Extensions
             sslMessage.Append(protocolVersionBytes);
             sslMessage.Append(handshakeLengthBytes);
             byte[] handShakeLayerBytes = new byte[length];
-            Buffer.BlockCopy(bytes, offset, handShakeLayerBytes, 0, length);
-            offset += length;
+            Buffer.BlockCopy(bytes, tempOffset, handShakeLayerBytes, 0, length);
+            tempOffset += length;
             //解析handShakeLayer
             GetNextLayer(contentTypeBytes, handShakeLayerBytes, sslMessage, ref changeCipherSpec);
+            offset = tempOffset;
             return true;
         }
 
@@ -191,7 +194,7 @@ namespace NetMQ.Security.Extensions
             byte[] tempLength = new byte[2];
             tempLength[0] = lengthBytes[1];
             tempLength[1] = lengthBytes[0];
-            int length = BitConverter.ToInt16(tempLength, 0);
+            int length = BitConverter.ToUInt16(tempLength, 0);
             return length;
         }
 
@@ -264,7 +267,7 @@ namespace NetMQ.Security.Extensions
 
             byte[] tempLength = new byte[2];
             tempLength[1] = sessionIdLengthBytes[0];
-            int length = BitConverter.ToInt16(tempLength, 0);
+            int length = BitConverter.ToUInt16(tempLength, 0);
 
             byte[] sessionIdBytes = new byte[length];
             Buffer.BlockCopy(bytes, offset, sessionIdBytes, 0, length);

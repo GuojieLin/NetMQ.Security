@@ -1,7 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using NetMQ.Security;
+using NetMQ.Security.Extensions;
 using NetMQ.Security.V0_1;
+using NetMQ.Sockets;
 using NUnit.Framework;
 
 namespace NetMQ.Security.Tests
@@ -225,6 +230,137 @@ namespace NetMQ.Security.Tests
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
 
+
+        [Test]
+        public void BigBytesData()
+        {
+            NetMQMessage plainMessage = new NetMQMessage();
+            plainMessage.Append(new byte[1024*1024]);
+
+            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+
+           var plainMessage1 = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
+            Assert.AreEqual(plainMessage.FrameCount, plainMessage1.FrameCount);
+            Assert.AreEqual(plainMessage.Last.Buffer, plainMessage1.Last.Buffer);
+        }
+        [Test]
+        public void MutiThreadEncryptDecrypt()
+        {
+            AutoResetEvent autoResetEvent = new AutoResetEvent(false);
+            int count = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                Thread  thread = new Thread(()=>
+                {
+                    try
+                    {
+                        for(int j = 0; j <500; j ++)
+                        {
+                            NetMQMessage plainMessage1 = new NetMQMessage();
+                            plainMessage1.Append("Hello");
+                            NetMQMessage cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(plainMessage1);
+                            byte [] combineBytes = new byte[0];
+                            foreach (var frame in cipherMessage1)
+                            {
+                                combineBytes = combineBytes.Combine(frame.Buffer);
+                            }
+                            bool change= true;
+                            int offet = 0;
+                            combineBytes.GetV0_2RecordLayerNetMQMessage(ref change,ref offet,out cipherMessage1);
+                            NetMQMessage decryptedMessage1 = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage1);
+
+                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), plainMessage1[0].ConvertToString());
+                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), "Hello");
+                        }
+                        Interlocked.Increment(ref count);
+                        if(count == 4)
+                        {
+                            autoResetEvent.Set();
+                        }
+                    }
+                    catch(Exception exception)
+                    {
+                        Console.WriteLine(exception);
+                        autoResetEvent.Set();
+                        Assert.IsTrue(false);
+                    }
+                });
+                thread.IsBackground = true;
+                thread.Start();
+            }
+            autoResetEvent.WaitOne();
+        }
+
+
+
+        [Test]
+        public void SendReceiveMutiThreadEncryptDecrypt()
+        {
+            StreamSocket server = new StreamSocket();
+            server.Bind("tcp://*:12345");
+            StreamSocket client = new StreamSocket();
+            client.Connect("tcp://*:12345");
+
+            int count = 0;
+            try
+            {
+                for (int j = 0; j < 500; j++)
+                {
+                    NetMQMessage plainMessage1 = new NetMQMessage();
+                    plainMessage1.Append("Hello");
+                    NetMQMessage cipherMessage1 = m_clientSecureChannel.EncryptApplicationMessage(plainMessage1);
+                    byte [] combineBytes = new byte[0];
+                    foreach (var frame in cipherMessage1)
+                    {
+                        combineBytes = combineBytes.Combine(frame.Buffer);
+                    }
+                    for (int i = 0; i < 500; i++)
+                    {
+                        client.SendMoreFrame(client.Options.Identity);
+                        client.SendMoreFrame(BitConverter.GetBytes(combineBytes.Length).Combine(combineBytes));
+                    }
+                    NetMQMessage message = null;
+                    byte[] buffer = new byte[0];
+                    while (server.TryReceiveMultipartMessage(ref message))
+                    {
+                        buffer.Combine(message.Last.Buffer);
+                        while (buffer.Length > 4)
+                        {
+                            Byte[] lengthBytes = new byte[4];
+                            int length = BitConverter.ToInt32(lengthBytes, 0);
+                            if(buffer.Length - 4 > length)
+                            {
+                                byte[]databytes = new byte[length];
+                                Buffer.BlockCopy(buffer, 0, databytes, 0, length);
+                                byte[] temp = new byte[buffer.Length - length];
+                                Buffer.BlockCopy(buffer, length, temp, 0, buffer.Length - length);
+                                buffer = temp;
+
+                                
+                                bool change= true;
+                                int offet = 0;
+                                databytes.GetV0_2RecordLayerNetMQMessage(ref change, ref offet, out cipherMessage1);
+                                NetMQMessage decryptedMessage = m_serverSecureChannel.DecryptApplicationMessage(cipherMessage1);
+                                Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage1[0].ConvertToString());
+                                Assert.AreEqual(decryptedMessage[0].ConvertToString(), "Hello");
+                                cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(decryptedMessage);
+                                cipherMessage1.GetLength(lengthBytes);
+                                lengthBytes = lengthBytes.Combine(cipherMessage1.Last.Buffer);
+                                decryptedMessage.RemoveFrame(decryptedMessage.Last);
+                                decryptedMessage.Append(lengthBytes);
+                            }
+                        }
+                        server.SendMultipartMessage(message);
+                    }
+                }
+                Interlocked.Increment(ref count);
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception);
+                Assert.IsTrue(false);
+            }
+        }
         [Test]
         public void ChangeEncryptedFrameLength()
         {

@@ -53,7 +53,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             byte[] temp = new byte[2];
             temp[1] = ciphersLengthFrame.Buffer[0];
             temp[0] = ciphersLengthFrame.Buffer[1];
-            int ciphersLength = BitConverter.ToInt16(temp, 0) / 2;
+            int ciphersLength = BitConverter.ToUInt16(temp, 0) / 2;
 
             // get the cipher-suites
             NetMQFrame ciphersFrame = message.Pop();

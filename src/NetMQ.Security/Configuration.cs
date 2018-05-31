@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace NetMQ.Security
@@ -21,18 +22,16 @@ namespace NetMQ.Security
         /// </summary>
         public bool StandardTLSFormat { get; set; }
 
-        /// <summary>
-        /// 私钥路径
-        /// </summary>
-        public string CertificatePath { get; set; }
-        /// <summary>
-        /// 私钥密码
-        /// </summary>
-        public string CertificatePassword { get; set; }
+        public X509Certificate2 Certificate { get; private set; }
 
         public Configuration()
         {
             StandardTLSFormat = true;
         }
+        public void LoadCert(string certificatePath, string password)
+        {
+            Certificate = new X509Certificate2(certificatePath,
+                   password);
+        } 
     }
 }

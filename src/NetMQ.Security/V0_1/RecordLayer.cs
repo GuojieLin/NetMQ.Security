@@ -174,60 +174,62 @@ namespace NetMQ.Security.V0_1
             }
 
             NetMQMessage cipherMessage = new NetMQMessage();
-
-            using (var encryptor = m_encryptionBulkAlgorithm.CreateEncryptor())
+            lock (m_encryptionBulkAlgorithm)
             {
-                ulong seqNum = GetAndIncreaseSequneceNumber();
-                byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
-
-                var iv = GenerateIV(encryptor, seqNumBytes);
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                using (var encryptor = m_encryptionBulkAlgorithm.CreateEncryptor())
                 {
-                    //增加长度2个字符
-                    var lengthBytes = BitConverter.GetBytes(iv.Length);
-                    cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
-                }
-                cipherMessage.Append(iv);
+                    ulong seqNum = GetAndIncreaseSequneceNumber();
+                    byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
 
-                // including the frame number in the message to make sure the frames are not reordered
-                int frameIndex = 0;
-
-                // the first frame is the sequence number and the number of frames to make sure frames was not removed
-                byte[] frameBytes = new byte[12];
-                Buffer.BlockCopy(seqNumBytes, 0, frameBytes, 0, 8);
-                int frameCount = plainMessage.FrameCount;
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                {
-                    frameCount += plainMessage.FrameCount;
-                }
-                Buffer.BlockCopy(BitConverter.GetBytes(frameCount), 0, frameBytes, 8, 4);
-
-                byte[] cipherSeqNumBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, frameBytes);
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                {
-                    //增加长度2个字符
-                    var lengthBytes = BitConverter.GetBytes(cipherSeqNumBytes.Length);
-                    cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
-                }
-                cipherMessage.Append(cipherSeqNumBytes);
-
-                frameIndex++;
-
-                foreach (NetMQFrame plainFrame in plainMessage)
-                {
-                    byte[] cipherBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, plainFrame.ToByteArray());
+                    var iv = GenerateIV(encryptor, seqNumBytes);
                     if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                     {
                         //增加长度2个字符
-                        var lengthBytes = BitConverter.GetBytes(cipherBytes.Length);
+                        var lengthBytes = BitConverter.GetBytes(iv.Length);
                         cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
                     }
-                    cipherMessage.Append(cipherBytes);
+                    cipherMessage.Append(iv);
+
+                    // including the frame number in the message to make sure the frames are not reordered
+                    int frameIndex = 0;
+
+                    // the first frame is the sequence number and the number of frames to make sure frames was not removed
+                    byte[] frameBytes = new byte[12];
+                    Buffer.BlockCopy(seqNumBytes, 0, frameBytes, 0, 8);
+                    int frameCount = plainMessage.FrameCount;
+                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                    {
+                        frameCount += plainMessage.FrameCount;
+                    }
+                    Buffer.BlockCopy(BitConverter.GetBytes(frameCount), 0, frameBytes, 8, 4);
+
+                    byte[] cipherSeqNumBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, frameBytes);
+                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                    {
+                        //增加长度2个字符
+                        var lengthBytes = BitConverter.GetBytes(cipherSeqNumBytes.Length);
+                        cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
+                    }
+                    cipherMessage.Append(cipherSeqNumBytes);
 
                     frameIndex++;
-                }
 
-                return cipherMessage;
+                    foreach (NetMQFrame plainFrame in plainMessage)
+                    {
+                        byte[] cipherBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, plainFrame.ToByteArray());
+                        if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                        {
+                            //增加长度2个字符
+                            var lengthBytes = BitConverter.GetBytes(cipherBytes.Length);
+                            cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
+                        }
+                        cipherMessage.Append(cipherBytes);
+
+                        frameIndex++;
+                    }
+
+                    return cipherMessage;
+                }
             }
         }
 
@@ -345,64 +347,66 @@ namespace NetMQ.Security.V0_1
                 NetMQFrame ivLengthFrame = cipherMessage.Pop();
             }
             NetMQFrame ivFrame = cipherMessage.Pop();
-
-            m_decryptionBulkAlgorithm.IV = ivFrame.ToByteArray();
-
-            using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor())
+            lock (m_decryptionBulkAlgorithm)
             {
-                NetMQMessage plainMessage = new NetMQMessage();
+                m_decryptionBulkAlgorithm.IV = ivFrame.ToByteArray();
 
-                if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor())
                 {
-                    NetMQFrame seqNumFrameLength = cipherMessage.Pop();
-                }
-                NetMQFrame seqNumFrame = cipherMessage.Pop();
-
-                byte[] frameBytes;
-                byte[] seqNumMAC;
-                byte[] padding;
-
-                DecryptBytes(decryptor, seqNumFrame.ToByteArray(), out frameBytes, out seqNumMAC, out padding);
-
-                ulong seqNum = BitConverter.ToUInt64(frameBytes, 0);
-                int frameCount = BitConverter.ToInt32(frameBytes, 8);
-
-                int frameIndex = 0;
-
-                ValidateBytes(contentType, seqNum, frameIndex, frameBytes, seqNumMAC, padding);
-
-                if (CheckReplayAttack(seqNum))
-                {
-                    throw new NetMQSecurityException(NetMQSecurityErrorCode.ReplayAttack,
-                                  "Message already handled or very old message, might be under replay attack");
-                }
-
-                if (frameCount != cipherMessage.FrameCount)
-                {
-                    throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFramesMissing, "Frames was removed from the encrypted message");
-                }
-
-                frameIndex++;
-                for(int i = 0; i < cipherMessage.FrameCount; i++)
-                {
+                    NetMQMessage plainMessage = new NetMQMessage();
 
                     if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
                     {
-                        i++;
+                        NetMQFrame seqNumFrameLength = cipherMessage.Pop();
                     }
-                    NetMQFrame cipherFrame = cipherMessage[i];
-                    byte[] data;
-                    byte[] mac;
+                    NetMQFrame seqNumFrame = cipherMessage.Pop();
 
-                    DecryptBytes(decryptor, cipherFrame.ToByteArray(), out data, out mac, out padding);
-                    ValidateBytes(contentType, seqNum, frameIndex, data, mac, padding);
+                    byte[] frameBytes;
+                    byte[] seqNumMAC;
+                    byte[] padding;
+
+                    DecryptBytes(decryptor, seqNumFrame.ToByteArray(), out frameBytes, out seqNumMAC, out padding);
+
+                    ulong seqNum = BitConverter.ToUInt64(frameBytes, 0);
+                    int frameCount = BitConverter.ToInt32(frameBytes, 8);
+
+                    int frameIndex = 0;
+
+                    ValidateBytes(contentType, seqNum, frameIndex, frameBytes, seqNumMAC, padding);
+
+                    if (CheckReplayAttack(seqNum))
+                    {
+                        throw new NetMQSecurityException(NetMQSecurityErrorCode.ReplayAttack,
+                                      "Message already handled or very old message, might be under replay attack");
+                    }
+
+                    if (frameCount != cipherMessage.FrameCount)
+                    {
+                        throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFramesMissing, "Frames was removed from the encrypted message");
+                    }
 
                     frameIndex++;
+                    for (int i = 0; i < cipherMessage.FrameCount; i++)
+                    {
 
-                    plainMessage.Append(data);
+                        if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+                        {
+                            i++;
+                        }
+                        NetMQFrame cipherFrame = cipherMessage[i];
+                        byte[] data;
+                        byte[] mac;
+
+                        DecryptBytes(decryptor, cipherFrame.ToByteArray(), out data, out mac, out padding);
+                        ValidateBytes(contentType, seqNum, frameIndex, data, mac, padding);
+
+                        frameIndex++;
+
+                        plainMessage.Append(data);
+                    }
+
+                    return plainMessage;
                 }
-
-                return plainMessage;
             }
         }
 
