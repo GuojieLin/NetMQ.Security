@@ -1,4 +1,5 @@
 ﻿using NetMQ.Security.V0_1.HandshakeMessages;
+using System;
 using System.Diagnostics;
 
 namespace NetMQ.Security.V0_2.HandshakeMessages
@@ -19,7 +20,11 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <returns>the resulting new NetMQMessage</returns>
         public override NetMQMessage ToNetMQMessage()
         {
-            NetMQMessage message = base.ToNetMQMessage();
+            NetMQMessage message = AddHandShakeType();
+            
+            var encryptedPreMasterSecretLength = BitConverter.GetBytes(EncryptedPreMasterSecret.Length);
+            message.Append(new byte[] { encryptedPreMasterSecretLength[1], encryptedPreMasterSecretLength[0] });
+            message.Append(EncryptedPreMasterSecret);
             var handShakeType = message.Pop();
             InsertLength(message);
             message.Push(handShakeType);
@@ -36,6 +41,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             NetMQFrame lengthFrame = message.Pop();
+            NetMQFrame encryptedPreMasterSecretLengthFrame = message.Pop();
             base.SetFromNetMQMessage(message);
         }
     }

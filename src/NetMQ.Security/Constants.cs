@@ -18,7 +18,12 @@ namespace NetMQ.Security
         public const int RANDOM_LENGTH = 32;
         public const int CIPHER_SUITES_LENGTH = 2;
         public const int CIPHER_SUITE_LENGTH = 2;
+        public const int COMPRESSION_MENTHOD_LENGTH = 1;
+        public const int COMPRESSION_MENTHOD = 1;
         public const int CLIENT_KEY_EXCHANGE_LENGTH = 3;
+        public const int CERTIFICATE_LENGTH = 3;
+        public const int RSA_KEY_LENGTH = 2;
+       
         public const int IV_LENGTH = 2;
         public const int SEQ_NUM_LENGTH = 8;
         public const int FRAME_COUNT_LENGTH = 4;

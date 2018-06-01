@@ -250,11 +250,25 @@ namespace NetMQ.Security.Extensions
             Buffer.BlockCopy(bytes, offset, cipherSuiteslengthBytes, 0, Constants.CIPHER_SUITES_LENGTH);
             sslMessage.Append(cipherSuiteslengthBytes);
             offset += Constants.CIPHER_SUITES_LENGTH;
+            int cipherSuiteslength = BitConverter.ToUInt16(new []{cipherSuiteslengthBytes[1], cipherSuiteslengthBytes[0] }, 0);
 
-            byte[] cipherSuitesBytes = new byte[bytes.Length - offset];
+            byte[] cipherSuitesBytes = new byte[cipherSuiteslength];
             //get Cipher Suites version
-            Buffer.BlockCopy(bytes, offset, cipherSuitesBytes, 0, bytes.Length - offset);
+            Buffer.BlockCopy(bytes, offset, cipherSuitesBytes, 0, cipherSuiteslength);
             sslMessage.Append(cipherSuitesBytes);
+            offset += cipherSuiteslength;
+            //压缩长度1个字节
+            byte[] compressionMethodLengthBytes = new byte[Constants.COMPRESSION_MENTHOD_LENGTH];
+            //get Cipher Suites Length version
+            Buffer.BlockCopy(bytes, offset, compressionMethodLengthBytes, 0, Constants.COMPRESSION_MENTHOD_LENGTH);
+            sslMessage.Append(compressionMethodLengthBytes);
+            offset += Constants.COMPRESSION_MENTHOD_LENGTH;
+            int compressionMethodLength = (int)compressionMethodLengthBytes[0];
+
+            byte[] compressionMethodBytes = new byte[bytes.Length - offset];
+            //get Cipher Suites version
+            Buffer.BlockCopy(bytes, offset, compressionMethodBytes, 0, bytes.Length - offset);
+            sslMessage.Append(compressionMethodBytes);
         }
 
         private static void GetSessionId(byte[] bytes, ref int offset, NetMQMessage sslMessage)
@@ -297,6 +311,13 @@ namespace NetMQ.Security.Extensions
             //get Cipher Suites Length version
             Buffer.BlockCopy(bytes, offset, cipherSuiteBytes, 0, Constants.CIPHER_SUITE_LENGTH);
             sslMessage.Append(cipherSuiteBytes);
+            offset += Constants.CIPHER_SUITE_LENGTH;
+            //压缩方法
+            byte[] compressionMethodBytes = new byte[Constants.COMPRESSION_MENTHOD];
+            //get Cipher Suites Length version
+            Buffer.BlockCopy(bytes, offset, compressionMethodBytes, 0, Constants.COMPRESSION_MENTHOD);
+            sslMessage.Append(compressionMethodBytes);
+            offset += Constants.COMPRESSION_MENTHOD;
         }
 
         /// <summary>
@@ -310,10 +331,30 @@ namespace NetMQ.Security.Extensions
             int offset = 1;
             GetHandShakeContentLength(bytes, ref offset, sslMessage);
 
-            byte[] certificateBytes = new byte[bytes.Length - offset];
-            //get Cipher Suites Length version
-            Buffer.BlockCopy(bytes, offset, certificateBytes, 0, bytes.Length - offset);
-            sslMessage.Append(certificateBytes);
+
+            byte[] certificatesLengthBytes = new byte[Constants.CERTIFICATE_LENGTH];
+            //get hand shake content length
+            Buffer.BlockCopy(bytes, offset, certificatesLengthBytes, 0, Constants.CERTIFICATE_LENGTH);
+            sslMessage.Append(certificatesLengthBytes);
+            offset += Constants.CERTIFICATE_LENGTH;
+
+            //uint length = BitConverter.ToUInt32(new byte[] { 0,certificatesLengthBytes[2], certificatesLengthBytes[1], certificatesLengthBytes[0] }, 0);
+
+            //目前只有一个证书
+            //while (offset < bytes.Length)
+            //{
+
+                byte[] certificateLengthBytes = new byte[Constants.CERTIFICATE_LENGTH];
+                //get hand shake content length
+                Buffer.BlockCopy(bytes, offset, certificateLengthBytes, 0, Constants.CERTIFICATE_LENGTH);
+                sslMessage.Append(certificateLengthBytes);
+                offset += Constants.CERTIFICATE_LENGTH;
+
+                byte[] certificateBytes = new byte[bytes.Length - offset];
+                //get Cipher Suites Length version
+                Buffer.BlockCopy(bytes, offset, certificateBytes, 0, bytes.Length - offset);
+                sslMessage.Append(certificateBytes);
+            //}
         }
         private static void GetServerHelloDoneLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
         {
@@ -341,6 +382,12 @@ namespace NetMQ.Security.Extensions
         {
             int offset = 1;
             GetHandShakeContentLength(bytes, ref offset, sslMessage);
+
+            byte[] keyLengthBytes = new byte[Constants.RSA_KEY_LENGTH];
+            //get hand shake content length
+            Buffer.BlockCopy(bytes, offset, keyLengthBytes, 0, Constants.RSA_KEY_LENGTH);
+            sslMessage.Append(keyLengthBytes);
+            offset += Constants.RSA_KEY_LENGTH;
 
             byte[] clientKeyExchangeBytes = new byte[bytes.Length - offset];
             //get master key 

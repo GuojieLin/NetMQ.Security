@@ -231,17 +231,38 @@ namespace NetMQ.Security.Tests
         }
 
 
-        [Test]
-        public void BigBytesData()
+        [TestCase(1)]
+        [TestCase(1024)]
+        [TestCase(65423)]
+        [TestCase(65535)]
+        [TestCase(1048576)]
+        public void BigBytesData(int length)
         {
             NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append(new byte[1024*1024]);
-
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
-
-           var plainMessage1 = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
-            Assert.AreEqual(plainMessage.FrameCount, plainMessage1.FrameCount);
-            Assert.AreEqual(plainMessage.Last.Buffer, plainMessage1.Last.Buffer);
+            plainMessage.Append(new byte[1024 * 1024]);
+            new Random().NextBytes(plainMessage[0].Buffer);
+            byte[]data = m_serverSecureChannel.EncryptApplicationBytes(plainMessage[0].Buffer);
+            List< NetMQMessage> netmqs = new List<NetMQMessage>();
+            bool c = true;
+            int o= 0;
+            data.GetV0_2RecordLayerNetMQMessage(ref c, out o, out netmqs);
+            List< NetMQMessage> plainMessages = new List<NetMQMessage>();
+            foreach (var netmq in netmqs)
+            {
+                plainMessages.Add(m_clientSecureChannel.DecryptApplicationMessage(netmq));
+            }
+            Assert.AreEqual(plainMessage.Sum(p => p.BufferSize), plainMessages.Sum(f => f.Sum(p => p.BufferSize)));
+            byte[] encryptBytes = new byte[plainMessages.Sum(e=>e.Sum(f=>f.BufferSize))];
+            int offset = 0;
+            foreach (var p in plainMessages)
+            {
+                foreach (var frame in p)
+                {
+                    Buffer.BlockCopy(frame.Buffer, 0, encryptBytes, offset, frame.BufferSize);
+                    offset += frame.BufferSize;
+                }
+            }
+            Assert.AreEqual(plainMessage[0].Buffer, encryptBytes);
         }
         [Test]
         public void MutiThreadEncryptDecrypt()
@@ -292,75 +313,6 @@ namespace NetMQ.Security.Tests
         }
 
 
-
-        [Test]
-        public void SendReceiveMutiThreadEncryptDecrypt()
-        {
-            StreamSocket server = new StreamSocket();
-            server.Bind("tcp://*:12345");
-            StreamSocket client = new StreamSocket();
-            client.Connect("tcp://*:12345");
-
-            int count = 0;
-            try
-            {
-                for (int j = 0; j < 500; j++)
-                {
-                    NetMQMessage plainMessage1 = new NetMQMessage();
-                    plainMessage1.Append("Hello");
-                    NetMQMessage cipherMessage1 = m_clientSecureChannel.EncryptApplicationMessage(plainMessage1);
-                    byte [] combineBytes = new byte[0];
-                    foreach (var frame in cipherMessage1)
-                    {
-                        combineBytes = combineBytes.Combine(frame.Buffer);
-                    }
-                    for (int i = 0; i < 500; i++)
-                    {
-                        client.SendMoreFrame(client.Options.Identity);
-                        client.SendMoreFrame(BitConverter.GetBytes(combineBytes.Length).Combine(combineBytes));
-                    }
-                    NetMQMessage message = null;
-                    byte[] buffer = new byte[0];
-                    while (server.TryReceiveMultipartMessage(ref message))
-                    {
-                        buffer.Combine(message.Last.Buffer);
-                        while (buffer.Length > 4)
-                        {
-                            Byte[] lengthBytes = new byte[4];
-                            int length = BitConverter.ToInt32(lengthBytes, 0);
-                            if(buffer.Length - 4 > length)
-                            {
-                                byte[]databytes = new byte[length];
-                                Buffer.BlockCopy(buffer, 0, databytes, 0, length);
-                                byte[] temp = new byte[buffer.Length - length];
-                                Buffer.BlockCopy(buffer, length, temp, 0, buffer.Length - length);
-                                buffer = temp;
-
-                                
-                                bool change= true;
-                                int offet = 0;
-                                databytes.GetV0_2RecordLayerNetMQMessage(ref change, ref offet, out cipherMessage1);
-                                NetMQMessage decryptedMessage = m_serverSecureChannel.DecryptApplicationMessage(cipherMessage1);
-                                Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage1[0].ConvertToString());
-                                Assert.AreEqual(decryptedMessage[0].ConvertToString(), "Hello");
-                                cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(decryptedMessage);
-                                cipherMessage1.GetLength(lengthBytes);
-                                lengthBytes = lengthBytes.Combine(cipherMessage1.Last.Buffer);
-                                decryptedMessage.RemoveFrame(decryptedMessage.Last);
-                                decryptedMessage.Append(lengthBytes);
-                            }
-                        }
-                        server.SendMultipartMessage(message);
-                    }
-                }
-                Interlocked.Increment(ref count);
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine(exception);
-                Assert.IsTrue(false);
-            }
-        }
         [Test]
         public void ChangeEncryptedFrameLength()
         {

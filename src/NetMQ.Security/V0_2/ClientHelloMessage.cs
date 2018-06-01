@@ -24,7 +24,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
 
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 5)
+            if (message.FrameCount != 7)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
@@ -50,6 +50,8 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
             {
                 CipherSuites[i] = (CipherSuite)ciphersFrame.Buffer[i * 2 + 1];
             }
+            NetMQFrame compressionMethodLength= message.Pop();
+            NetMQFrame compressionMethod= message.Pop();
         }
         /// <summary>
         /// Return a new NetMQMessage that holds three frames:
@@ -69,6 +71,10 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
             message.Push(new byte[1] { bytes[0] });
             message.Push(random);
             message.Push(Version);
+            //压缩方法长度
+            message.Append(new byte[1] { 1 });
+            //压缩方法
+            message.Append(new byte[1] { 0 });
             InsertLength(message);
             message.Push(handShakeType);
             return message;

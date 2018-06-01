@@ -22,7 +22,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 2.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 4)
+            if (message.FrameCount != 5)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
@@ -38,6 +38,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
             NetMQFrame cipherSuiteFrame = message.Pop();
             CipherSuite = (CipherSuite)cipherSuiteFrame.Buffer[1];
 
+            NetMQFrame compressionMethod= message.Pop();
         }
 
         /// <summary>
@@ -58,6 +59,7 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
             message.Push(new byte[1] { bytes[0] });
             message.Push(random);
             message.Push(Version);
+            message.Append(new byte[1] { 0 });
             InsertLength(message);
             message.Push(handShakeType);
             return message;

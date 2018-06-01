@@ -256,7 +256,6 @@ namespace NetMQ.Security.V0_1
             {
                 throw new ArgumentNullException(nameof(plainMessage));
             }
-
             return InternalEncryptAndWrapMessage(ContentType.ApplicationData, plainMessage);
         }
         /// <summary>
@@ -266,15 +265,54 @@ namespace NetMQ.Security.V0_1
         /// <returns>a new NetMQMessage that is encrypted</returns>
         /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
-        public NetMQMessage EncryptApplicationBytes([NotNull] byte [] plainBytes)
+        public byte[] EncryptApplicationBytes([NotNull] byte [] plainBytes)
         {
             if (plainBytes == null)
             {
                 throw new ArgumentNullException(nameof(plainBytes));
             }
-            NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append(plainBytes);
-            return EncryptApplicationMessage(plainMessage);
+
+            //计算需要拆分包的个数
+            int splitCount = 0;
+            //每个ApplicationData包用2个字节保存长度，最大为65536，65423字节数据加密后的长度即为65536
+            //超过长度的需要拆分多个包加密后发送。
+            splitCount = plainBytes.Length / 65423;
+            List<NetMQMessage> encryptMessages = new List<NetMQMessage>(splitCount);
+            int offset= 0;
+            int count = 0;
+            do
+            {
+                bool split = (plainBytes.Length-offset) > 65423;
+                int length= 0;
+                if(split)
+                {
+                    length = 65423;
+                }
+                else
+                {
+                    length = plainBytes.Length - offset;
+                }
+                byte[]splitPlainBytes= new byte[length];
+                Buffer.BlockCopy(plainBytes, offset, splitPlainBytes, 0, splitPlainBytes.Length);
+                NetMQMessage plainMessage = new NetMQMessage();
+                plainMessage.Append(splitPlainBytes);
+                NetMQMessage encryptMessage = EncryptApplicationMessage(plainMessage);
+                encryptMessages.Add(encryptMessage);
+                count++;
+                offset += length;
+            } while (offset < plainBytes.Length);
+
+            byte[] encryptBytes = new byte[encryptMessages.Sum(e=>e.Sum(f=>f.BufferSize))];
+            offset = 0;
+            foreach (var encryptMessage in encryptMessages)
+            {
+                foreach (var frame in encryptMessage)
+                {
+                    Buffer.BlockCopy(frame.Buffer, 0, encryptBytes, offset, frame.BufferSize);
+                    offset += frame.BufferSize;
+                }
+            }
+            return encryptBytes;
         }
 
         /// <summary>

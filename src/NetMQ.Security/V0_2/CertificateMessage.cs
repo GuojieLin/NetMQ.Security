@@ -1,4 +1,5 @@
 ﻿using NetMQ.Security.V0_1.HandshakeMessages;
+using System;
 using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 
@@ -21,6 +22,8 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
             NetMQFrame lengthFrame = message.Pop();
+            NetMQFrame certslengthFrame = message.Pop();
+            NetMQFrame certlengthFrame = message.Pop();
             base.SetFromNetMQMessage(message);
         }
 
@@ -32,7 +35,16 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <returns>the resulting new NetMQMessage</returns>
         public override NetMQMessage ToNetMQMessage()
         {
-            NetMQMessage message = base.ToNetMQMessage();
+            NetMQMessage message = AddHandShakeType();
+            byte[] certBytes = Certificate.Export(X509ContentType.Cert);
+            //加长度,证书总长度
+            var certsLengthBytes = BitConverter.GetBytes(certBytes.Length+3);
+            message.Append(new byte[] { certsLengthBytes[2], certsLengthBytes[1], certsLengthBytes[0] });
+            //每个证书的长度和证书
+            var certLengthBytes = BitConverter.GetBytes(certBytes.Length);
+            message.Append(new byte[] { certLengthBytes[2], certLengthBytes[1], certLengthBytes[0] });
+            message.Append(certBytes);
+
             var handShakeType = message.Pop();
             InsertLength(message);
             message.Push(handShakeType);

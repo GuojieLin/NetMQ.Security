@@ -50,7 +50,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
-
+            //加长度
             message.Append(Certificate.Export(X509ContentType.Cert));
 
             return message;
