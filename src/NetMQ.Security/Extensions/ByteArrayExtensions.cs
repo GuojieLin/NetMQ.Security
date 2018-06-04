@@ -113,6 +113,9 @@ namespace NetMQ.Security.Extensions
                 case ContentType.ApplicationData:
                     GetApplicationDataLayer(handShakeLayerBytes, sslMessage);
                     break;
+                case ContentType.Alert:
+                    GetAlertLayer(handShakeLayerBytes, sslMessage);
+                    break;
             }
         }
 
@@ -120,6 +123,11 @@ namespace NetMQ.Security.Extensions
         private static void GetChangeCipherSpecLayer(byte[] bytes, NetMQMessage sslMessage)
         {
             sslMessage.Append(bytes);
+        }
+        private static void GetAlertLayer(byte[] bytes, NetMQMessage sslMessage)
+        {
+            sslMessage.Append(new byte[] { bytes[0] });
+            sslMessage.Append(new byte[] { bytes[1] });
         }
         private static void GetApplicationDataLayer(byte[] bytes, NetMQMessage sslMessage)
         {
@@ -278,11 +286,7 @@ namespace NetMQ.Security.Extensions
             Buffer.BlockCopy(bytes, offset, sessionIdLengthBytes, 0, Constants.SESSION_ID_LENGTH);
             sslMessage.Append(sessionIdLengthBytes);
             offset += Constants.SESSION_ID_LENGTH;
-
-            byte[] tempLength = new byte[2];
-            tempLength[1] = sessionIdLengthBytes[0];
-            int length = BitConverter.ToUInt16(tempLength, 0);
-
+            int length = (int)sessionIdLengthBytes[0];
             byte[] sessionIdBytes = new byte[length];
             Buffer.BlockCopy(bytes, offset, sessionIdBytes, 0, length);
             offset += length;

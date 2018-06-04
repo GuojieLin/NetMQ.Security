@@ -24,7 +24,7 @@ namespace NetMQ.Console
             {
                 socket.Bind("tcp://*:5556");
 
-                using (SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server, m_configuration))
+                using (SecureChannel secureChannel = SecureChannel.CreateServerSecureChannel(m_configuration))
                 {
 
                     // we need to set X509Certificate with a private key for the server

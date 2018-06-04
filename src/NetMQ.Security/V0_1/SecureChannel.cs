@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using JetBrains.Annotations;
 
 namespace NetMQ.Security.V0_1
@@ -16,18 +17,66 @@ namespace NetMQ.Security.V0_1
         private RecordLayer m_recordLayer;
         public Configuration Configuration { get; private set; }
         private readonly OutgoingMessageBag m_outgoingMessageBag;
-
+        public byte[] SessionId { get; private set; }
         /// <summary>
         /// 当前使用的版本。
         /// </summary>
         public byte[] ProtocolVersion { get; private set; }
 
         private ConnectionEnd n_ConnectionEnd;
+
+        /// <summary>
+        /// Get whether a change-cipher-suite message has arrived.
+        /// </summary>
+        public bool ChangeSuiteChangeArrived { get; private set; }
+
+        /// <summary>
+        /// Get whether this SecureChannel is ready to exchange content messages.
+        /// </summary>
+        public bool SecureChannelReady { get; private set; }
+
+        /// <summary>
+        /// Get or set the X.509 digital certificate to be used for encryption of this channel.
+        /// </summary>
+        public X509Certificate2 Certificate
+        {
+            get { return m_handshakeLayer.LocalCertificate; }
+            set { m_handshakeLayer.LocalCertificate = value; }
+        }
+
+        /// <summary>
+        /// Get or set the collection of cipher-suites that are available. This maps to a simple byte-array.
+        /// </summary>
+        public CipherSuite[] AllowedCipherSuites
+        {
+            get { return m_handshakeLayer.AllowedCipherSuites; }
+            set { m_handshakeLayer.AllowedCipherSuites = value; }
+        }
+
         /// <summary>
         /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
         /// </summary>
         /// <param name="connectionEnd">the ConnectionEnd that this channel is to talk to</param>
-        public SecureChannel(ConnectionEnd connectionEnd, Configuration configuration = null)
+        public static SecureChannel CreateClientSecureChannel(byte[] sesionId = null,Configuration configuration = null)
+        {
+            SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Client,configuration);
+            if (sesionId != null) secureChannel.UpdateSessionId(sesionId);
+            return secureChannel;
+        }
+        /// <summary>
+        /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
+        /// </summary>
+        /// <param name="connectionEnd">the ConnectionEnd that this channel is to talk to</param>
+        public static SecureChannel CreateServerSecureChannel(Configuration configuration = null)
+        {
+            SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server,configuration);
+            return secureChannel;
+        }
+        /// <summary>
+        /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
+        /// </summary>
+        /// <param name="connectionEnd">the ConnectionEnd that this channel is to talk to</param>
+        private SecureChannel(ConnectionEnd connectionEnd, Configuration configuration = null)
         {
             Configuration = configuration ?? new Configuration();
             n_ConnectionEnd = connectionEnd;
@@ -58,34 +107,6 @@ namespace NetMQ.Security.V0_1
         {
             return standardTLSFormat ? Constants.SupposeVersions[1].ToArray() : Constants.SupposeVersions[0].ToArray();
         }
-        /// <summary>
-        /// Get whether a change-cipher-suite message has arrived.
-        /// </summary>
-        public bool ChangeSuiteChangeArrived { get; private set; }
-
-        /// <summary>
-        /// Get whether this SecureChannel is ready to exchange content messages.
-        /// </summary>
-        public bool SecureChannelReady { get; private set; }
-
-        /// <summary>
-        /// Get or set the X.509 digital certificate to be used for encryption of this channel.
-        /// </summary>
-        public X509Certificate2 Certificate
-        {
-            get { return m_handshakeLayer.LocalCertificate; }
-            set { m_handshakeLayer.LocalCertificate = value; }
-        }
-
-        /// <summary>
-        /// Get or set the collection of cipher-suites that are available. This maps to a simple byte-array.
-        /// </summary>
-        public CipherSuite[] AllowedCipherSuites
-        {
-            get { return m_handshakeLayer.AllowedCipherSuites; }
-            set { m_handshakeLayer.AllowedCipherSuites = value; }
-        }
-
         /// <summary>
         /// Assign the delegate to use to verify the X.509 certificate.
         /// </summary>
@@ -181,6 +202,7 @@ namespace NetMQ.Security.V0_1
             if (contentType == ContentType.Handshake)
             {
                 result = m_handshakeLayer.ProcessMessages(incomingMessage, m_outgoingMessageBag);
+                this.SessionId = m_handshakeLayer.SessionID;
                 // Move the messages from the saved list over to the outgoing Messages collection..
                 foreach (NetMQMessage outgoingMesssage in m_outgoingMessageBag.Messages)
                 {
@@ -276,17 +298,17 @@ namespace NetMQ.Security.V0_1
             int splitCount = 0;
             //每个ApplicationData包用2个字节保存长度，最大为65536，65423字节数据加密后的长度即为65536
             //超过长度的需要拆分多个包加密后发送。
-            splitCount = plainBytes.Length / 65423;
+            splitCount = plainBytes.Length / Constants.MAX_SUPPOSE_PLAIN_BYTE_SIZE;
             List<NetMQMessage> encryptMessages = new List<NetMQMessage>(splitCount);
             int offset= 0;
             int count = 0;
             do
             {
-                bool split = (plainBytes.Length-offset) > 65423;
+                bool split = (plainBytes.Length-offset) > Constants.MAX_SUPPOSE_PLAIN_BYTE_SIZE;
                 int length= 0;
                 if(split)
                 {
-                    length = 65423;
+                    length = Constants.MAX_SUPPOSE_PLAIN_BYTE_SIZE;
                 }
                 else
                 {
@@ -360,6 +382,24 @@ namespace NetMQ.Security.V0_1
             return m_recordLayer.DecryptMessage(ContentType.ApplicationData, cipherMessage);
         }
 
+        public void UpdateSessionId(byte[]sessionId)
+        {
+            SessionId = sessionId;
+            m_handshakeLayer.UpdateSessionId(sessionId);
+        }
+        public NetMQMessage Alert(AlertLevel alertLevel, AlertDescription alertDescription)
+        {
+            NetMQMessage message = new NetMQMessage();
+            message.Append(new[] { (byte)ContentType.Alert });
+            message.Append(ProtocolVersion.ToArray());
+            if (ProtocolVersion.SequenceEqual(Constants.V3_3))
+            {
+                message.Append(new byte[2] { 0, 2 });
+            }
+            message.Append(new byte[1] { (byte)alertLevel });
+            message.Append(new byte[1] { (byte)alertDescription });
+            return message;
+        }
         /// <summary>
         /// Release any contained resources of this SecureChannel object.
         /// </summary>

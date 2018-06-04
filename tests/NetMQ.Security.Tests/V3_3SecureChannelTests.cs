@@ -22,9 +22,10 @@ namespace NetMQ.Security.Tests
             Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
-            m_serverSecureChannel = new SecureChannel(ConnectionEnd.Server, configuration) { Certificate = certificate };
+            m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
+            m_serverSecureChannel.Certificate = certificate;
 
-            m_clientSecureChannel = new SecureChannel(ConnectionEnd.Client, configuration);
+            m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
             IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
             IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();

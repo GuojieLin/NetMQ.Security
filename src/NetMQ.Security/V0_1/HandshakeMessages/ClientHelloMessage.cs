@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 
 namespace NetMQ.Security.V0_1.HandshakeMessages
 {
@@ -16,7 +17,6 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// </summary>
         public byte[] RandomNumber { get; set; }
         public byte[] SessionID { get; set; }
-
         /// <summary>
         /// Get the part of the handshake-protocol that this HandshakeMessage represents
         /// - in this case a ClientHello.
@@ -39,13 +39,18 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 3.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 3)
+            if (message.FrameCount != 5)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
             // get the random number
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
+            NetMQFrame sessionIdLengthFrame = message.Pop();
+            NetMQFrame sessionIdFrame = message.Pop();
+            this.SessionID = sessionIdFrame.ToByteArray();
+            //若为空则需要初始话一个新的sessionid
+            if (this.SessionID.Length == 0) this.SessionID = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
 
             // get the length of the cipher-suites array
             NetMQFrame ciphersLengthFrame = message.Pop();
@@ -74,6 +79,10 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         {
             NetMQMessage message = AddHandShakeType();
             message.Append(RandomNumber);
+
+            if (SessionID == null) SessionID = new byte[0];
+            message.Append(new byte[] { (byte)SessionID.Length });
+            message.Append(SessionID);
 
             int length = 2 * CipherSuites.Length;
             byte[] bytes = BitConverter.GetBytes(length);

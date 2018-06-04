@@ -22,9 +22,10 @@ namespace NetMQ.Security.Tests
             Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
-            m_serverSecureChannel = new SecureChannel(ConnectionEnd.Server, configuration) { Certificate = certificate };
+            m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
+            m_serverSecureChannel.Certificate = certificate;
 
-            m_clientSecureChannel = new SecureChannel(ConnectionEnd.Client, configuration);
+            m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
             IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
             IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();
@@ -139,14 +140,184 @@ namespace NetMQ.Security.Tests
         }
 
         [Test]
+        public void SessionRecoverTest()
+        {
+            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
+            byte []sessionId = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
+            m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
+            m_serverSecureChannel.Certificate = certificate;
+
+            m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(sessionId, configuration);
+
+            IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
+            IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();
+
+            bool serverComplete = false;
+
+            bool clientComplete = m_clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+
+            Assert.IsTrue(m_clientSecureChannel.SessionId.SequenceEqual(sessionId));
+            bool serverChangeCipherSpec = false;
+            bool clientChangeCipherSpec = false;
+            while (!serverComplete || !clientComplete)
+            {
+                if (!serverComplete)
+                {
+                    byte[] combineBytes= new byte[0];
+                    int sum = 0;
+                    foreach (var message in clientOutgoingMessages)
+                    {
+                        foreach (var frame in message)
+                        {
+                            combineBytes = combineBytes.Combine(frame.Buffer);
+                            sum += frame.BufferSize;
+                        }
+                    }
+                    List<NetMQMessage> sslMessages;
+                    Assert.AreEqual(sum, combineBytes.Length);
+                    int offset;
+                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref serverChangeCipherSpec,out offset,out sslMessages);
+                    Assert.IsTrue(result);
+                    Assert.AreEqual(offset, combineBytes.Length);
+                    Assert.AreEqual(sslMessages.Count, clientOutgoingMessages.Count);
+                    for (int i = 0; i < sslMessages.Count; i++)
+                    {
+                        Assert.AreEqual(sslMessages[i].FrameCount, clientOutgoingMessages[i].FrameCount);
+                        for (int j = 0; j < sslMessages[i].FrameCount; j++)
+                        {
+                            Assert.AreEqual(sslMessages[i][j].Buffer, clientOutgoingMessages[i][j].Buffer);
+                        }
+                    }
+                    foreach (var message in clientOutgoingMessages)
+                    {
+                        serverComplete = m_serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+
+                        Assert.IsTrue(m_serverSecureChannel.SessionId.SequenceEqual(sessionId));
+                        if (serverComplete)
+                        {
+                            break;
+                        }
+                    }
+
+                    clientOutgoingMessages.Clear();
+                }
+
+                if (!clientComplete)
+                {
+                    byte[] combineBytes= new byte[0];
+                    int sum = 0;
+                    foreach (var message in serverOutgoingMessages)
+                    {
+                        foreach (var frame in message)
+                        {
+                            combineBytes = combineBytes.Combine(frame.Buffer);
+                            sum += frame.BufferSize;
+                        }
+                    }
+                    List<NetMQMessage> sslMessages;
+                    Assert.AreEqual(sum, combineBytes.Length);
+                    int offset;
+                    bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref clientChangeCipherSpec,out offset,out sslMessages);
+                    Assert.AreEqual(offset, combineBytes.Length);
+                    Assert.IsTrue(result);
+                    Assert.AreEqual(sslMessages.Count, serverOutgoingMessages.Count);
+                    for (int i = 0; i < sslMessages.Count; i++)
+                    {
+                        Assert.AreEqual(sslMessages[i].FrameCount, serverOutgoingMessages[i].FrameCount);
+                        for (int j = 0; j < sslMessages[i].FrameCount; j++)
+                        {
+                            Assert.AreEqual(sslMessages[i][j].Buffer, serverOutgoingMessages[i][j].Buffer);
+                        }
+                    }
+                    foreach (var message in serverOutgoingMessages)
+                    {
+                        clientComplete = m_clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+
+                        Assert.IsTrue(m_clientSecureChannel.SessionId.SequenceEqual(sessionId));
+                        if (clientComplete)
+                        {
+                            break;
+                        }
+                    }
+
+                    serverOutgoingMessages.Clear();
+                }
+            }
+        }
+
+        [Test]
+        public void AlertTest()
+        {
+            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
+            byte []sessionId = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
+            m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
+            m_serverSecureChannel.Certificate = certificate;
+
+            m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(sessionId, configuration);
+            IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
+            IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();
+            bool clientComplete = m_clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool serverComplete;
+            foreach (var message in clientOutgoingMessages)
+            {
+                serverComplete = m_serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+
+                Assert.IsTrue(m_serverSecureChannel.SessionId.SequenceEqual(sessionId));
+                if (serverComplete)
+                {
+                    break;
+                }
+            }
+            var alertMessage = m_serverSecureChannel.Alert(AlertLevel.Warning, AlertDescription.DecryptError);
+            Assert.AreEqual(alertMessage.FrameCount, 5);
+            Assert.AreEqual(alertMessage.First.BufferSize, 1);
+            Assert.AreEqual((int)alertMessage.First.Buffer[0], 21);
+            Assert.AreEqual(alertMessage[3].BufferSize, 1);
+            Assert.AreEqual((AlertLevel)alertMessage[3].Buffer[0], AlertLevel.Warning);
+            Assert.AreEqual(alertMessage[4].BufferSize, 1);
+            Assert.AreEqual((AlertDescription)alertMessage[4].Buffer[0], AlertDescription.DecryptError);
+
+
+            byte[] combineBytes= new byte[0];
+            int sum = 0;
+            foreach (var frame in alertMessage)
+            {
+                combineBytes = combineBytes.Combine(frame.Buffer);
+                sum += frame.BufferSize;
+            }
+            List<NetMQMessage> sslMessages;
+            Assert.AreEqual(sum, combineBytes.Length);
+            int offset;
+            bool clientChangeCipherSpec = true;
+            bool result = combineBytes.GetV0_2RecordLayerNetMQMessage(ref clientChangeCipherSpec,out offset,out sslMessages);
+            Assert.AreEqual(offset, combineBytes.Length);
+            Assert.IsTrue(result);
+            Assert.AreEqual(sslMessages.Count, 1);
+            for (int j = 0; j < sslMessages[0].FrameCount; j++)
+            {
+                Assert.AreEqual(sslMessages[0][j].Buffer, alertMessage[j].Buffer);
+            }
+            alertMessage = m_clientSecureChannel.Alert(AlertLevel.Warning, AlertDescription.DecryptError);
+            Assert.AreEqual(alertMessage.FrameCount, 5);
+            Assert.AreEqual(alertMessage.First.BufferSize, 1);
+            Assert.AreEqual((int)alertMessage.First.Buffer[0], 21);
+            Assert.AreEqual(alertMessage[3].BufferSize, 1);
+            Assert.AreEqual((AlertLevel)alertMessage[3].Buffer[0], AlertLevel.Warning);
+            Assert.AreEqual(alertMessage[4].BufferSize, 1);
+            Assert.AreEqual((AlertDescription)alertMessage[4].Buffer[0], AlertDescription.DecryptError);
+        }
+        [Test]
         public void HandShakeTest()
         {
             Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
-            m_serverSecureChannel = new SecureChannel(ConnectionEnd.Server, configuration) { Certificate = certificate };
+            m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
+            m_serverSecureChannel.Certificate = certificate ;
 
-            m_clientSecureChannel = new SecureChannel(ConnectionEnd.Client, configuration);
+            m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
             IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
             IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();

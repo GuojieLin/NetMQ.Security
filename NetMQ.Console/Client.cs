@@ -23,7 +23,7 @@ namespace NetMQ.Console
             {
                 socket.Connect("tcp://127.0.0.1:5556");
 
-                SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Client , m_configuration);
+                SecureChannel secureChannel = SecureChannel.CreateClientSecureChannel(null,m_configuration);
 
                 // we are not using signed certificate so we need to validate 
                 // the certificate of the server, by default the secure channel 

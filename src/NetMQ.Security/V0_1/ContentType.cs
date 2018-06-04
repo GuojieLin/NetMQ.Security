@@ -10,7 +10,10 @@
         /// This signals a change of cipher-spec.
         /// </summary>
         ChangeCipherSpec = 20,
-        //alert(21), 
+        /// <summary>
+        /// Alert messages convey the severity of the message (warning or fatal) and a description of the alert
+        /// </summary>
+        Alert = 21, 
 
         /// <summary>
         /// This denotes content that is of the handshaking part of the protocol.

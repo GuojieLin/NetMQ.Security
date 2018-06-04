@@ -23,15 +23,21 @@ namespace NetMQ.Security
         public const int CLIENT_KEY_EXCHANGE_LENGTH = 3;
         public const int CERTIFICATE_LENGTH = 3;
         public const int RSA_KEY_LENGTH = 2;
-       
+
         public const int IV_LENGTH = 2;
         public const int SEQ_NUM_LENGTH = 8;
         public const int FRAME_COUNT_LENGTH = 4;
         public const int CONTENT_LENGTH = 2;
 
+        /// <summary>
+        /// 最大支持的明文长度,每个ApplicationData包用2个字节保存长度,最大为65536,65423字节数据加密后的长度即为65536
+        /// </summary>
+        public const int MAX_SUPPOSE_PLAIN_BYTE_SIZE = 65423;
+
+
+
         public static byte[] V0_1 = new byte[2]{0,1};
         public static byte[] V3_3 = new byte[2]{3,3};
-
 
         /// <summary>
         /// 服务端支持的版本,目前只支持3,3

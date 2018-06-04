@@ -8,15 +8,15 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.1.6</Version>
+    <Version>0.2.1.12</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.1.6</AssemblyVersion>
+    <AssemblyVersion>0.2.1.12</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.1.6</FileVersion>
-    <PackageReleaseNotes>certificate,clientkeyexchange 格式修正</PackageReleaseNotes>
+    <FileVersion>0.2.1.12</FileVersion>
+    <PackageReleaseNotes>增加session id支持，增加alert协议</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

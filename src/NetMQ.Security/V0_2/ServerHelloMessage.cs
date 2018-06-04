@@ -53,10 +53,6 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
             NetMQMessage message = base.ToNetMQMessage();
             var handShakeType = message.Pop();
             var random = message.Pop();
-            var bytes = BitConverter.GetBytes(SessionID.Length);
-            //目前是空的，暂不支持sessionid
-            message.Push(SessionID);
-            message.Push(new byte[1] { bytes[0] });
             message.Push(random);
             message.Push(Version);
             message.Append(new byte[1] { 0 });

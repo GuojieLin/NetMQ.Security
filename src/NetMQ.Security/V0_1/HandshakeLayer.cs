@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using NetMQ.Security.V0_1.HandshakeMessages;
 
 namespace NetMQ.Security.V0_1
@@ -79,6 +80,9 @@ namespace NetMQ.Security.V0_1
         /// It is initialized to a SHA256PRF.
         /// </summary>
         private IPRF m_prf = new SHA256PRF();
+
+
+        public byte[] SessionID { get; private set; }
         /// <summary>
         /// Create a new HandshakeLayer object given a SecureChannel and which end of the connection it is to be.
         /// </summary>
@@ -257,7 +261,8 @@ namespace NetMQ.Security.V0_1
                 new V0_2.HandshakeMessages.ClientHelloMessage():
                 new ClientHelloMessage();
             clientHelloMessage.RandomNumber = new byte[RandomNumberLength];
-            clientHelloMessage.SessionID = new byte[SessionIdLength];
+
+            clientHelloMessage.SessionID = SessionID;
 
             m_rng.GetBytes(clientHelloMessage.RandomNumber);
 
@@ -307,7 +312,8 @@ namespace NetMQ.Security.V0_1
                new ClientHelloMessage();
 
             clientHelloMessage.SetFromNetMQMessage(incomingMessage);
-
+            //获取到客户端的sessionid
+            this.SessionID = clientHelloMessage.SessionID;
             SecurityParameters.ClientRandom = clientHelloMessage.RandomNumber;
 
             AddServerHelloMessage(outgoingMessages, clientHelloMessage.CipherSuites);
@@ -346,8 +352,10 @@ namespace NetMQ.Security.V0_1
                 new V0_2.HandshakeMessages.ServerHelloMessage():
                 new ServerHelloMessage ();
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
-            serverHelloMessage.SessionID = new byte[SessionIdLength];
             m_rng.GetBytes(serverHelloMessage.RandomNumber);
+            //客户端没有传sessionid则生成一个新的sessionid
+            if (this.SessionID.Length == 0) this.SessionID = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
+            serverHelloMessage.SessionID = this.SessionID;
 
             SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
 
@@ -664,6 +672,14 @@ namespace NetMQ.Security.V0_1
             Array.Clear(preMasterSecret, 0, preMasterSecret.Length);
         }
 
+        /// <summary>
+        /// 更新sessionid
+        /// </summary>
+        /// <param name="sessionId"></param>
+        public void UpdateSessionId(byte[] sessionId)
+        {
+            SessionID = sessionId;
+        }
         /// <summary>
         /// Dispose of any contained resources.
         /// </summary>
