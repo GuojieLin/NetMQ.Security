@@ -8,7 +8,7 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.1.14</Version>
+    <Version>0.2.1.15</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
@@ -16,14 +16,14 @@
     <AssemblyVersion>0.2.1.14</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
     <FileVersion>0.2.1.14</FileVersion>
-    <PackageReleaseNotes>增加session id支持，增加alert协议</PackageReleaseNotes>
+    <PackageReleaseNotes>NetMQ包更新</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="10.1.5">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="NetMQ" Version="4.0.1.12" />
+    <PackageReference Include="NetMQ" Version="4.0.1.13" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
