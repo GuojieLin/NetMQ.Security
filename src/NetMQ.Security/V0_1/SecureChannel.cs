@@ -387,6 +387,18 @@ namespace NetMQ.Security.V0_1
             SessionId = sessionId;
             m_handshakeLayer.UpdateSessionId(sessionId);
         }
+
+        public NetMQMessage HandshakeFailure(AlertLevel alertLevel,byte[] protocolVersion = null)
+        {
+            if (protocolVersion == null) protocolVersion = new byte[2] { 3, 3 };
+            NetMQMessage message = new NetMQMessage();
+            message.Append(new[] { (byte)ContentType.Alert });
+            message.Append(protocolVersion);
+            message.Append(new byte[2] { 0, 2 });
+            message.Append(new byte[1] { (byte)alertLevel });
+            message.Append(new byte[1] { (byte)AlertDescription.HandshakeFailure });
+            return message;
+        }
         public NetMQMessage Alert(AlertLevel alertLevel, AlertDescription alertDescription)
         {
             NetMQMessage message = new NetMQMessage();

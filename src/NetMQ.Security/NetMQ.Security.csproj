@@ -8,15 +8,15 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.1.15</Version>
+    <Version>0.2.2.2</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.1.14</AssemblyVersion>
+    <AssemblyVersion>0.2.2.2</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.1.14</FileVersion>
-    <PackageReleaseNotes>NetMQ包更新</PackageReleaseNotes>
+    <FileVersion>0.2.2.2</FileVersion>
+    <PackageReleaseNotes>服务端握手返回Alert，默认版本号为TLS3.3版本。</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

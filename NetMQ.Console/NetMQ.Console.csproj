@@ -27,6 +27,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NetMQ" Version="4.0.1.13" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\src\NetMQ.Security\NetMQ.Security.csproj" />
   </ItemGroup>
 
