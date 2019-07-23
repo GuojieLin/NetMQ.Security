@@ -1,29 +1,31 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net35;net40;</TargetFrameworks>
+    <TargetFrameworks>net35;net40</TargetFrameworks>
     <DebugType>portable</DebugType>
     <AssemblyName>NetMQ.Security</AssemblyName>
     <AssemblyOriginatorKeyFile>../../NetMQ.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.2.2</Version>
+    <Version>0.2.3.0</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.2.2</AssemblyVersion>
+    <AssemblyVersion>0.2.3.0</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.2.2</FileVersion>
-    <PackageReleaseNotes>服务端握手返回Alert，默认版本号为TLS3.3版本。</PackageReleaseNotes>
+    <FileVersion>0.2.3.0</FileVersion>	  
+    <IncludeSymbols>true</IncludeSymbols>
+    <IncludeSource>true</IncludeSource>
+    <PackageReleaseNotes>更新NetMQ版本为4.0.2.0,修复底层接收时连接已重置导致内存泄漏的问题</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JetBrains.Annotations" Version="10.1.5">
+    <PackageReference Include="JetBrains.Annotations" Version="10.4.0">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="NetMQ" Version="4.0.1.13" />
+    <PackageReference Include="NetMQ" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
