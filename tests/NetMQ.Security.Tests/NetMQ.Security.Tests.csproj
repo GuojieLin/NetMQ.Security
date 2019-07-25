@@ -27,7 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.7.0" />
     <PackageReference Include="dotnet-test-nunit" Version="3.4.0-beta-1" />
-    <PackageReference Include="NetMQ" Version="4.0.2" />
+    <PackageReference Include="NetMQ" Version="4.0.2.1" />
     <PackageReference Include="NUnit" Version="3.10.1" />
     <PackageReference Include="JetBrains.Annotations" Version="10.4.0">
       <PrivateAssets>All</PrivateAssets>
