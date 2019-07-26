@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NetMQ" Version="4.0.2.1" />
+    <PackageReference Include="NetMQ" Version="4.0.3.2" />
   </ItemGroup>
 
   <ItemGroup>
