@@ -8,17 +8,17 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.3.7</Version>
+    <Version>0.2.3.8</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.3.7</AssemblyVersion>
+    <AssemblyVersion>0.2.3.8</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.3.7</FileVersion>	  
+    <FileVersion>0.2.3.8</FileVersion>	  
     <IncludeSymbols>true</IncludeSymbols>
     <IncludeSource>true</IncludeSource>
-    <PackageReleaseNotes>更新NetMQ版本为4.0.3.3。
+    <PackageReleaseNotes>更新NetMQ版本为4.0.3.4。
 修复底层接收时连接已重置导致内存泄漏的问题。
 支持客户端主动关闭连接。</PackageReleaseNotes>
   </PropertyGroup>
@@ -27,7 +27,7 @@
     <PackageReference Include="JetBrains.Annotations" Version="10.4.0">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="NetMQ" Version="4.0.3.3" />
+    <PackageReference Include="NetMQ" Version="4.0.3.4" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
