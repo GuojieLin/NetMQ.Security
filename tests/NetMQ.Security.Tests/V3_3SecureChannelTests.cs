@@ -19,7 +19,7 @@ namespace NetMQ.Security.Tests
         [SetUp]
         public void Setup()
         {
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration() { VerifyCertificate = false, StandardTLSFormat = true };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
             m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -40,8 +40,18 @@ namespace NetMQ.Security.Tests
                 {
                     foreach (var message in clientOutgoingMessages)
                     {
-                        serverComplete = m_serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+                        int offset;
+                        List<NetMQMessage> sslMessages;
+                        bool result = m_serverSecureChannel.ResolveRecordLayer(message.Last.Buffer, out offset, out sslMessages);
+                        foreach (var sslMessage in sslMessages)
+                        {
+                            serverComplete = m_serverSecureChannel.ProcessMessage(sslMessage, serverOutgoingMessages);
 
+                            if (serverComplete)
+                            {
+                                break;
+                            }
+                        }
                         if (serverComplete)
                         {
                             break;
@@ -55,8 +65,19 @@ namespace NetMQ.Security.Tests
                 {
                     foreach (var message in serverOutgoingMessages)
                     {
-                        clientComplete = m_clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+                        int offset;
+                        List<NetMQMessage> sslMessages;
 
+                        bool result = m_clientSecureChannel.ResolveRecordLayer(message.Last.Buffer, out offset, out sslMessages);
+                        foreach (var sslMessage in sslMessages)
+                        {
+                            clientComplete = m_clientSecureChannel.ProcessMessage(sslMessage, clientOutgoingMessages);
+
+                            if (clientComplete)
+                            {
+                                break;
+                            }
+                        }
                         if (clientComplete)
                         {
                             break;
@@ -90,6 +111,16 @@ namespace NetMQ.Security.Tests
 
             NetMQMessage cipherMessage = m_clientSecureChannel.EncryptApplicationMessage(plainMessage);
 
+            bool changeCipherSepc = false;
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_serverSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+
             NetMQMessage decryptedMessage = m_serverSecureChannel.DecryptApplicationMessage(cipherMessage);
 
             Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage[0].ConvertToString());
@@ -104,6 +135,13 @@ namespace NetMQ.Security.Tests
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
+            bool changeCipherSepc = false;
+            int offset;
+            List<NetMQMessage> sslMessages;
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
             NetMQMessage decryptedMessage = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
 
             Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage[0].ConvertToString());
@@ -117,6 +155,17 @@ namespace NetMQ.Security.Tests
             NetMQMessage plainMessage = new NetMQMessage();
             plainMessage.Append("Hello");
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+
+            bool changeCipherSepc = false;
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+
             NetMQMessage decryptedMessage = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
             Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage[0].ConvertToString());
 
@@ -124,11 +173,18 @@ namespace NetMQ.Security.Tests
             plainMessage = new NetMQMessage();
             plainMessage.Append("Reply");
             cipherMessage = m_clientSecureChannel.EncryptApplicationMessage(plainMessage);
+
+            result = m_serverSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+
             decryptedMessage = m_serverSecureChannel.DecryptApplicationMessage(cipherMessage);
             Assert.AreEqual(decryptedMessage[0].ConvertToString(), plainMessage[0].ConvertToString());
         }
 
         [Test]
+        [Ignore("暂时不支持多个包一同加密")]
         public void MultipartMessage()
         {
             NetMQMessage plainMessage = new NetMQMessage();
@@ -149,9 +205,18 @@ namespace NetMQ.Security.Tests
             NetMQMessage plainMessage = new NetMQMessage();
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
             NetMQMessage decryptedMessage = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
 
-            Assert.AreEqual(decryptedMessage.FrameCount, 0);
+            Assert.AreEqual(decryptedMessage[0].BufferSize, 0);
         }
 
         [Test]
@@ -161,7 +226,15 @@ namespace NetMQ.Security.Tests
             plainMessage.Append("Hello");
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            
+            int offset;
+            List<NetMQMessage> sslMessages;
 
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+            
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
             // changing the protocol version
             cipherMessage[1].Buffer[0] = 99;
 
@@ -178,15 +251,25 @@ namespace NetMQ.Security.Tests
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
             // remove the first frame
+            cipherMessage.RemoveFrame(cipherMessage.Last);
+            cipherMessage.RemoveFrame(cipherMessage.Last);
             cipherMessage.RemoveFrame(cipherMessage.Last);
 
             NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
 
-            Assert.AreEqual(NetMQSecurityErrorCode.EncryptedFramesMissing, exception.ErrorCode);
+            Assert.AreEqual(NetMQSecurityErrorCode.InvalidFramesCount, exception.ErrorCode);
         }
 
         [Test]
+        [Ignore("不支持多个ApplicationData")]
         public void ReorderFrames()
         {
             NetMQMessage plainMessage = new NetMQMessage();
@@ -194,7 +277,15 @@ namespace NetMQ.Security.Tests
             plainMessage.Append("World");
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            
+            int offset;
+            List<NetMQMessage> sslMessages;
 
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
             NetMQMessage temp = new NetMQMessage(cipherMessage.FrameCount);
             while(cipherMessage.FrameCount > 4)
             {
@@ -223,8 +314,18 @@ namespace NetMQ.Security.Tests
             plainMessage.Append("Hello");
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
 
             cipherMessage.Last.Buffer[0]++;
+
 
             NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
 
@@ -234,22 +335,27 @@ namespace NetMQ.Security.Tests
 
         [TestCase(1)]
         [TestCase(1024)]
-        [TestCase(65423)]
+        [TestCase(18432)]
+        [TestCase(18433)]
         [TestCase(65535)]
         [TestCase(1048576)]
         public void BigBytesData(int length)
         {
             NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append(new byte[1024 * 1024]);
+            plainMessage.Append(new byte[length]);
             new Random().NextBytes(plainMessage[0].Buffer);
             byte[]data = m_serverSecureChannel.EncryptApplicationBytes(plainMessage[0].Buffer);
-            List< NetMQMessage> netmqs = new List<NetMQMessage>();
-            bool c = true;
-            int o= 0;
-            data.GetV0_2RecordLayerNetMQMessage(ref c, out o, out netmqs);
+            List< NetMQMessage> sslMessages = new List<NetMQMessage>();
+
+
+            int o = 0;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(data, out o, out sslMessages);
+
             List< NetMQMessage> plainMessages = new List<NetMQMessage>();
-            foreach (var netmq in netmqs)
+            foreach (var netmq in sslMessages)
             {
+                //大包合并包
                 plainMessages.Add(m_clientSecureChannel.DecryptApplicationMessage(netmq));
             }
             Assert.AreEqual(plainMessage.Sum(p => p.BufferSize), plainMessages.Sum(f => f.Sum(p => p.BufferSize)));
@@ -270,6 +376,9 @@ namespace NetMQ.Security.Tests
         {
             AutoResetEvent autoResetEvent = new AutoResetEvent(false);
             int count = 0;
+            object lockObject= new object();
+            Queue<NetMQMessage> queue = new Queue<NetMQMessage>(2000);
+            bool finish = false;
             for (int i = 0; i < 4; i++)
             {
                 Thread  thread = new Thread(()=>
@@ -280,19 +389,11 @@ namespace NetMQ.Security.Tests
                         {
                             NetMQMessage plainMessage1 = new NetMQMessage();
                             plainMessage1.Append("Hello");
-                            NetMQMessage cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(plainMessage1);
-                            byte [] combineBytes = new byte[0];
-                            foreach (var frame in cipherMessage1)
+                            lock (queue)
                             {
-                                combineBytes = combineBytes.Combine(frame.Buffer);
+                                NetMQMessage cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(plainMessage1);
+                                queue.Enqueue(cipherMessage1);
                             }
-                            bool change= true;
-                            int offet = 0;
-                            combineBytes.GetV0_2RecordLayerNetMQMessage(ref change,ref offet,out cipherMessage1);
-                            NetMQMessage decryptedMessage1 = m_clientSecureChannel.DecryptApplicationMessage(cipherMessage1);
-
-                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), plainMessage1[0].ConvertToString());
-                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), "Hello");
                         }
                         Interlocked.Increment(ref count);
                         if(count == 4)
@@ -309,8 +410,43 @@ namespace NetMQ.Security.Tests
                 });
                 thread.IsBackground = true;
                 thread.Start();
+
+                thread = new Thread(() =>
+                {
+                    try
+                    {
+                        while(!finish)
+                        {
+                            NetMQMessage cipherMessage1;
+                            lock (queue)
+                            {
+                                cipherMessage1 = queue.Dequeue();
+                            }
+                            int offet = 0;
+                            List<NetMQMessage> sslMessages;
+                            m_clientSecureChannel.ResolveRecordLayer(cipherMessage1[0].Buffer, out offet, out sslMessages);
+
+                            NetMQMessage decryptedMessage1 = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0]);
+                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), "Hello");
+                        }
+                        Interlocked.Increment(ref count);
+                        if (count == 4)
+                        {
+                            autoResetEvent.Set();
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        Console.WriteLine(exception);
+                        autoResetEvent.Set();
+                        Assert.IsTrue(false);
+                    }
+                });
+                thread.IsBackground = true;
+                thread.Start();
             }
             autoResetEvent.WaitOne();
+            finish = true;
         }
 
 
@@ -322,10 +458,20 @@ namespace NetMQ.Security.Tests
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
+
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+
             cipherMessage.RemoveFrame(cipherMessage.Last);
 
             // appending new frame with length different then block size
-            cipherMessage.Append("Hello");
+            cipherMessage.Append("ChangeEncryptedFrame");
 
             NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
 
@@ -339,6 +485,15 @@ namespace NetMQ.Security.Tests
             plainMessage.Append("Hello");
 
             NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
 
             cipherMessage.Last.Buffer[15]++;
 
@@ -356,12 +511,26 @@ namespace NetMQ.Security.Tests
 
             // make a copy of the message because the method alter the current message
             NetMQMessage cipherMessageCopy = new NetMQMessage(cipherMessage);
+            
+            int offset;
+            List<NetMQMessage> sslMessages;
+
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
 
             m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
+            cipherMessage = new NetMQMessage(cipherMessageCopy);
 
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessageCopy));
+            result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
 
-            Assert.AreEqual(NetMQSecurityErrorCode.ReplayAttack, exception.ErrorCode);
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
+
+            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
 
         [Test]
@@ -369,24 +538,34 @@ namespace NetMQ.Security.Tests
         {
             NetMQMessage plainMessage = new NetMQMessage();
 
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            NetMQMessage cipherMessageCopy = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
 
+            NetMQMessage cipherMessage = new NetMQMessage(cipherMessageCopy);
             // copy of the first message, we are actually never try to decrypt the first message 
             // (to make sure the exception is because of the old message and not because the message was decrypted twice).
-            NetMQMessage cipherMessageCopy = new NetMQMessage(cipherMessage);
+
 
             // the window size is 1024, we to decrypt 1024 messages before trying to decrypt the old message
+            bool changeCipherSepc = m_serverSecureChannel.ChangeSuiteChangeArrived;
+            int offset;
+            List<NetMQMessage> sslMessages;
             for (int i = 0; i < 1025; i++)
             {
-                plainMessage = new NetMQMessage();
-
-                cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+                m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+                Assert.AreEqual(sslMessages.Count, 1);
+                cipherMessage = sslMessages[0];
                 m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
+                cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
             }
+            cipherMessage = cipherMessageCopy;
 
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessageCopy));
+            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
 
-            Assert.AreEqual(NetMQSecurityErrorCode.ReplayAttack, exception.ErrorCode);
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipherMessage = sslMessages[0];
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
+
+            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
 
         [Test]
@@ -401,11 +580,22 @@ namespace NetMQ.Security.Tests
             NetMQMessage cipher1 = m_clientSecureChannel.EncryptApplicationMessage(plain1);
             NetMQMessage cipher2 = m_clientSecureChannel.EncryptApplicationMessage(plain2);
 
-            NetMQMessage decrypted2 = m_serverSecureChannel.DecryptApplicationMessage(cipher2);
-            NetMQMessage decrypted1 = m_serverSecureChannel.DecryptApplicationMessage(cipher1);
+            int offset;
+            List<NetMQMessage> sslMessages;
+            bool result = m_serverSecureChannel.ResolveRecordLayer(cipher1.First.Buffer, out offset, out sslMessages);
 
-            Assert.AreEqual(decrypted1[0].ConvertToString(), "1");
-            Assert.AreEqual(decrypted2[0].ConvertToString(), "2");
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipher1 = sslMessages[0];
+            result = m_serverSecureChannel.ResolveRecordLayer(cipher2.First.Buffer, out offset, out sslMessages);
+            Assert.AreEqual(sslMessages.Count, 1);
+            cipher2 = sslMessages[0];
+
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationMessage(cipher2));
+
+            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
+            exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationMessage(cipher1));
+
+            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
     }
 }

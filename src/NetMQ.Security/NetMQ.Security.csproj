@@ -8,14 +8,14 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>NetMQ.Security</PackageId>
-    <Version>0.2.3.11</Version>
+    <Version>0.3.0</Version>
     <PackageProjectUrl>https://github.com/GuojieLin/NetMQ.Security</PackageProjectUrl>
     <RepositoryUrl>https://github.com/GuojieLin/NetMQ.Security</RepositoryUrl>
     <Description>基于NetMQ的TSL协议实现。</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>0.2.3.11</AssemblyVersion>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
     <PackageTags>ZeroMQ;0MQ;CLRZMQ;NetMQ;Messaging;ZMQ;TLS;SSL</PackageTags>
-    <FileVersion>0.2.3.11</FileVersion>	  
+    <FileVersion>0.3.0.0</FileVersion>	  
     <IncludeSymbols>true</IncludeSymbols>
     <IncludeSource>true</IncludeSource>
     <PackageReleaseNotes>更新NetMQ版本为4.0.3.5。
@@ -23,7 +23,7 @@
     支持客户端主动关闭连接。
 0.2.3.11-更新NetMQ版本为4.0.3.6。
     命令的listen设置为端口不重用。
-</PackageReleaseNotes>
+0.3.0 改为标准化的TLS1.2版本</PackageReleaseNotes>
     <NeutralLanguage></NeutralLanguage>
   </PropertyGroup>
 

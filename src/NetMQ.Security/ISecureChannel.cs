@@ -61,5 +61,19 @@ namespace NetMQ.Security
         /// <param name="cipherMessage">The cipher message</param>
         /// <returns>The decrypted message</returns>
         NetMQMessage DecryptApplicationMessage(NetMQMessage cipherMessage);
+
+        /// <summary>
+        /// Encrypt application Message
+        /// </summary>
+        /// <param name="plainMessage">The plain message</param>
+        /// <returns>The cipher message</returns>
+        byte[] EncryptApplicationBytes(byte[] plainMessage);
+
+        /// <summary>
+        /// Decrypt application message
+        /// </summary>
+        /// <param name="cipherMessage">The cipher message</param>
+        /// <returns>The decrypted message</returns>
+        byte[] DecryptApplicationBytes(byte[] cipherMessage);
     }
 }

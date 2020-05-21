@@ -1,4 +1,5 @@
 ﻿using NetMQ.Security.V0_1.HandshakeMessages;
+using System;
 using System.Diagnostics;
 
 namespace NetMQ.Security.V0_2.HandshakeMessages
@@ -12,14 +13,35 @@ namespace NetMQ.Security.V0_2.HandshakeMessages
         /// <summary>
         /// Remove the two frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the HandshakeType,
-        /// 2. a byte-array containing the verification data - used to verify the integrity of the content.
+        /// 2. 3 byte with the Length,
+        /// 3. a byte-array containing the verification data - used to verify the integrity of the content.
         /// </summary>
-        /// <param name="message">a NetMQMessage - which must have 2 frames</param>
+        /// <param name="message">a NetMQMessage - which must have 1 frames</param>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 1.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            NetMQFrame lengthFrame = message.Pop();
-            base.SetFromNetMQMessage(message);
+            if (message.FrameCount != 1)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
+            }
+
+            if (message.First.BufferSize != 16)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Malformed message");
+            }
+            if((HandshakeType)message.First.Buffer[0]!= HandshakeType.Finished)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Malformed message");
+            }
+            //小端
+            byte[] lengthByte = new byte[] { message.First.Buffer[3], message.First.Buffer[2], message.First.Buffer[1], (byte)0 };
+            int length = BitConverter.ToInt32(lengthByte, 0);
+            if (length != 12)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Malformed message");
+            }
+            VerifyData = new byte[12];
+            Buffer.BlockCopy(message.First.Buffer, 4, VerifyData, 0, VerifyData.Length);
         }
 
         /// <summary>

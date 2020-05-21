@@ -2,6 +2,7 @@
 using NetMQ.Security.V0_1.HandshakeMessages;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -9,6 +10,13 @@ namespace NetMQ.Security.Extensions
 {
     public static class ByteArrayExtensions
     {
+        public static byte[] LengthToBytes(this byte[] bytes, int length)
+        {
+            if (length > 4) throw new ArgumentException("max length 4 byte");
+            byte[] temp = BitConverter.GetBytes(bytes.Length);
+            //由于BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian
+            return temp.Take(length).Reverse().ToArray();
+        }
 
         public static byte[] Combine(this byte[] bytes1, byte[] bytes2)
         {
@@ -18,30 +26,12 @@ namespace NetMQ.Security.Extensions
             Buffer.BlockCopy(bytes2, 0, c, bytes1.Length, bytes2.Length);
             return c;
         }
-        public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, out int offset, out List<NetMQMessage> sslMessages)
-        {
-            sslMessages = new List<NetMQMessage>();
-            offset = 0;
-            do
-            {
-                NetMQMessage  sslMessage;
-                if (bytes.GetV0_2RecordLayerNetMQMessage(ref changeCipherSpec, ref offset, out sslMessage))
-                {
-                    sslMessages.Add(sslMessage);
-                }
-                else
-                {
-                    break;
-                }
-            } while (offset < bytes.Length);
-            return sslMessages.Count > 0;
-        }
         /// <summary>
         /// 将字节数组解析出ssl record layer格式。V3_3
         /// </summary>
         /// <param name="bytes"></param>
         /// <returns></returns>
-        public static bool GetV0_2RecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, ref int offset, out NetMQMessage sslMessage)
+        public static bool GetRecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, ref int offset, out List<NetMQMessage> sslMessages)
         {
             //用一个临时遍历保存偏移量，只有这个当前解析成功才偏移。
             int tempOffset = offset;
@@ -52,10 +42,10 @@ namespace NetMQ.Security.Extensions
                 //ProtocolVersion(2)
                 //握手协议长度：(2)
                 //握手协议数据
-                sslMessage = null;
+                sslMessages = null;
                 return false;
             }
-            sslMessage = new NetMQMessage();
+            NetMQMessage sslMessage = new NetMQMessage();
             byte[] contentTypeBytes = new byte[Constants.CONTENT_TYPE_LENGTH];
             //get content type
             Buffer.BlockCopy(bytes, tempOffset, contentTypeBytes, 0, Constants.CONTENT_TYPE_LENGTH);
@@ -80,121 +70,128 @@ namespace NetMQ.Security.Extensions
             //解析handshake长度
             if (tempOffset + length > bytes.Length)
             {
-                sslMessage = null;
+                sslMessages = null;
                 //接收到的数据长度不够，可能发送拆包。等后续包过来。
                 return false;
             }
+
             sslMessage.Append(contentTypeBytes);
             sslMessage.Append(protocolVersionBytes);
             sslMessage.Append(handshakeLengthBytes);
-            byte[] handShakeLayerBytes = new byte[length];
-            Buffer.BlockCopy(bytes, tempOffset, handShakeLayerBytes, 0, length);
+            //解析handShakeLayer或applicationdata
+            sslMessages = GetRecordLayers((ContentType)contentTypeBytes[0], bytes, tempOffset, tempOffset + length, ref changeCipherSpec);
             tempOffset += length;
-            //解析handShakeLayer
-            GetNextLayer(contentTypeBytes, handShakeLayerBytes, sslMessage, ref changeCipherSpec);
             offset = tempOffset;
+            foreach (NetMQMessage record in sslMessages)
+            {
+                //每个record都添加头部
+                foreach (NetMQFrame head in sslMessage.Reverse())//倒置，先插入后面的。
+                {
+                    record.Push(head.Buffer);
+                }
+            }
             return true;
         }
 
         #region private method
-        private static void GetNextLayer(byte[] contentTypeBytes, byte[] handShakeLayerBytes, NetMQMessage sslMessage, ref bool changeCipherSpec)
+        private static List<NetMQMessage> GetRecordLayers(ContentType contentType, byte[] handShakeLayerBytes, int start,int end, ref bool changeCipherSpec)
         {
-            ContentType contentType = (ContentType)contentTypeBytes[0];
-            switch (contentType)
+            List<NetMQMessage> sslMessages = new List<NetMQMessage>();
+            int offset = start;
+            do
             {
-                case ContentType.Handshake:
-                    GetHandShakeLayer(handShakeLayerBytes, sslMessage, changeCipherSpec);
-                    break;
-                case ContentType.ChangeCipherSpec:
-                    GetChangeCipherSpecLayer(handShakeLayerBytes, sslMessage);
-                    //后续都加密
-                    changeCipherSpec = true;
-                    break;
-                case ContentType.ApplicationData:
-                    GetApplicationDataLayer(handShakeLayerBytes, sslMessage);
-                    break;
-                case ContentType.Alert:
-                    GetAlertLayer(handShakeLayerBytes, sslMessage);
-                    break;
-            }
+
+                NetMQMessage record = null;
+                switch (contentType)
+                {
+                    case ContentType.Handshake:
+                        record = GetHandShakeLayer(handShakeLayerBytes, ref offset, end, changeCipherSpec);
+                        break;
+                    case ContentType.ChangeCipherSpec:
+                        record = GetChangeCipherSpecLayer(handShakeLayerBytes, ref offset);
+                        //后续都加密
+                        changeCipherSpec = true;
+                        break;
+                    case ContentType.ApplicationData:
+                        record = GetApplicationDataLayer(handShakeLayerBytes, end, ref offset);
+                        break;
+                    case ContentType.Alert:
+                        //可能加密，加载全部
+                        record = GetAlertLayer(handShakeLayerBytes, ref offset);
+                        break;
+                }
+                sslMessages.Add(record);
+            } while (offset < end);
+            return sslMessages;
         }
 
 
-        private static void GetChangeCipherSpecLayer(byte[] bytes, NetMQMessage sslMessage)
+        private static NetMQMessage GetChangeCipherSpecLayer(byte[] bytes, ref int offset)
         {
-            sslMessage.Append(bytes);
+            NetMQMessage sslMessage = new NetMQMessage();
+            sslMessage.Append(bytes[offset++]);
+            return sslMessage;
         }
-        private static void GetAlertLayer(byte[] bytes, NetMQMessage sslMessage)
+        private static NetMQMessage GetAlertLayer(byte[] bytes, ref int offset)
         {
-            sslMessage.Append(new byte[] { bytes[0] });
-            sslMessage.Append(new byte[] { bytes[1] });
+            NetMQMessage sslMessage = new NetMQMessage();
+            sslMessage.Append(new byte[] { bytes[offset] });
+            sslMessage.Append(new byte[] { bytes[offset+1] });
+            offset += 2;
+            return sslMessage;
         }
-        private static void GetApplicationDataLayer(byte[] bytes, NetMQMessage sslMessage)
+        private static NetMQMessage GetApplicationDataLayer(byte[] bytes, int end, ref int offset)
         {
-            //iv长度
-            int offset = 0;
-            byte[] ivLengthBytes= new byte[Constants.IV_LENGTH];
-            //get hand shake content length
-            Buffer.BlockCopy(bytes, offset, ivLengthBytes, 0, Constants.IV_LENGTH);
-            int length = GetLength(ivLengthBytes);
-            sslMessage.Append(ivLengthBytes);
-            offset += Constants.IV_LENGTH;
-
-
-            byte[] ivBytes = new byte[length];
-            Buffer.BlockCopy(bytes, offset, ivBytes, 0, length);
-            offset += length;
-            sslMessage.Append(ivBytes);
-
-            while (offset < bytes.Length)
-            {
-                byte[] contentLengthBytes= new byte[Constants.CONTENT_LENGTH];
-                //get hand shake content length
-                Buffer.BlockCopy(bytes, offset, contentLengthBytes, 0, Constants.CONTENT_LENGTH);
-                length = GetLength(contentLengthBytes);
-                sslMessage.Append(contentLengthBytes);
-                offset += Constants.CONTENT_LENGTH;
-                byte[] contentBytes= new byte[length];
-                //get hand shake content length
-                Buffer.BlockCopy(bytes, offset, contentBytes, 0, length);
-                sslMessage.Append(contentBytes);
-                offset += length;
-            }
+            if (end > bytes.Length) end = bytes.Length;
+            int length = end - offset;
+            byte[] data = new byte[length];
+            Buffer.BlockCopy(bytes, offset, data, 0, data.Length);
+            NetMQMessage sslMessage = new NetMQMessage();
+            sslMessage.Append(data);
+            offset += data.Length;
+            return sslMessage;
         }
 
 
-        private static void GetHandShakeLayer(byte[] bytes, NetMQMessage sslMessage, bool changeCipherSpec)
+        private static NetMQMessage GetHandShakeLayer(byte[] bytes, ref int offset ,int end, bool changeCipherSpec)
         {
+            NetMQMessage sslMessage = new NetMQMessage();
             if (changeCipherSpec)
             {
-                //加密的数据
-                GetApplicationDataLayer(bytes, sslMessage);
+                //握手时若密钥套件已就绪，需要全部读取。数据需要解密。
+                //该消息一定是Finished
+                sslMessage = GetApplicationDataLayer(bytes, end, ref offset);
             }
             else
             {
-                HandshakeType handshakeType = GetHandshakeType(bytes,sslMessage);
+                //一个record内会有多提奥握手数据
+                HandshakeType handshakeType = GetHandshakeType(bytes, ref offset, sslMessage);
                 switch (handshakeType)
                 {
+                    case HandshakeType.HelloRequest:
+                        break;
                     case HandshakeType.ClientHello:
-                        GetClientHelloLayer(handshakeType, bytes, sslMessage);
+                         GetClientHelloLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                     case HandshakeType.ServerHello:
-                        GetServerHelloLayer(handshakeType, bytes, sslMessage);
+                         GetServerHelloLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                     case HandshakeType.Certificate:
-                        GetCertificateLayer(handshakeType, bytes, sslMessage);
+                         GetCertificateLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                     case HandshakeType.ServerHelloDone:
-                        GetServerHelloDoneLayer(handshakeType, bytes, sslMessage);
+                         GetServerHelloDoneLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                     case HandshakeType.ClientKeyExchange:
-                        GetClientKeyExchangeLayer(handshakeType, bytes, sslMessage);
+                         GetClientKeyExchangeLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                     case HandshakeType.Finished:
-                        GetFinishLayer(handshakeType, bytes, sslMessage);
+                         GetFinishLayer(handshakeType, bytes, ref offset, sslMessage);
                         break;
                 }
             }
+            Debug.Assert(offset <= bytes.Length);
+            return sslMessage;
         }
 
         private static int GetLength(byte[] lengthBytes)
@@ -206,22 +203,22 @@ namespace NetMQ.Security.Extensions
             return length;
         }
 
-        private static HandshakeType GetHandshakeType(byte[] bytes, NetMQMessage sslMessage)
+        private static HandshakeType GetHandshakeType(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            byte[] handShakeBytes = new byte[Constants.HAND_SHAKE_TYPE];
-            //get content type
-            Buffer.BlockCopy(bytes, 0, handShakeBytes, 0, Constants.HAND_SHAKE_TYPE);
-            HandshakeType handshakeType = (HandshakeType) handShakeBytes[0];
-            sslMessage.Append(handShakeBytes);
+            HandshakeType handshakeType = (HandshakeType)bytes[offset];
+            sslMessage.Append(new[] { (byte)handshakeType });
+            offset += Constants.HAND_SHAKE_TYPE;
             return handshakeType;
         }
-        private static void GetHandShakeContentLength(byte[] bytes, ref int offset, NetMQMessage sslMessage)
+        private static int GetHandShakeContentLength(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_CONTENT_LENGTH];
             //get hand shake content length
             Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_CONTENT_LENGTH);
             sslMessage.Append(handShakeContentLengthBytes);
             offset += Constants.HAND_SHAKE_CONTENT_LENGTH;
+            int length = BitConverter.ToInt32(new[] { handShakeContentLengthBytes[2], handShakeContentLengthBytes[1], handShakeContentLengthBytes[0], (byte)0 }, 0);
+            return length;
         }
         private static void GetProtocolVersion(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
@@ -245,10 +242,9 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
-        private static void GetClientHelloLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static void GetClientHelloLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
-            GetHandShakeContentLength(bytes, ref offset, sslMessage);
+            int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
             GetProtocolVersion(bytes, ref offset, sslMessage);
             GetRandom(bytes, ref offset, sslMessage);
             GetSessionId(bytes, ref offset, sslMessage);
@@ -272,11 +268,24 @@ namespace NetMQ.Security.Extensions
             sslMessage.Append(compressionMethodLengthBytes);
             offset += Constants.COMPRESSION_MENTHOD_LENGTH;
             int compressionMethodLength = (int)compressionMethodLengthBytes[0];
-
-            byte[] compressionMethodBytes = new byte[bytes.Length - offset];
+            byte[] compressionMethodBytes = new byte[compressionMethodLength];
             //get Cipher Suites version
-            Buffer.BlockCopy(bytes, offset, compressionMethodBytes, 0, bytes.Length - offset);
+            Buffer.BlockCopy(bytes, offset, compressionMethodBytes, 0, compressionMethodLength);
+            offset += compressionMethodLength;
             sslMessage.Append(compressionMethodBytes);
+            
+            byte[] extensionsLengthBytes = new byte[Constants.EXTENSIONS_LENTGH];
+            //get Cipher Suites Length version
+            Buffer.BlockCopy(bytes, offset, extensionsLengthBytes, 0, Constants.EXTENSIONS_LENTGH);
+            sslMessage.Append(extensionsLengthBytes);
+            offset += Constants.EXTENSIONS_LENTGH;
+            int extensioLength = BitConverter.ToUInt16(new[] { extensionsLengthBytes[1], extensionsLengthBytes[0] }, 0);
+
+            byte[] extensionsBytes = new byte[extensioLength];
+            //get Cipher Suites version
+            Buffer.BlockCopy(bytes, offset, extensionsBytes, 0, extensioLength);
+            sslMessage.Append(extensionsBytes);
+            offset += extensioLength;
         }
 
         private static void GetSessionId(byte[] bytes, ref int offset, NetMQMessage sslMessage)
@@ -299,11 +308,9 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
-        private static void GetServerHelloLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static int GetServerHelloLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
-
-            GetHandShakeContentLength(bytes, ref offset, sslMessage);
+            int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
 
             GetProtocolVersion(bytes, ref offset, sslMessage);
 
@@ -322,6 +329,7 @@ namespace NetMQ.Security.Extensions
             Buffer.BlockCopy(bytes, offset, compressionMethodBytes, 0, Constants.COMPRESSION_MENTHOD);
             sslMessage.Append(compressionMethodBytes);
             offset += Constants.COMPRESSION_MENTHOD;
+            return offset;
         }
 
         /// <summary>
@@ -330,43 +338,46 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
-        private static void GetCertificateLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static void GetCertificateLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
-            GetHandShakeContentLength(bytes, ref offset, sslMessage);
+            int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
 
+            int start = offset;
 
             byte[] certificatesLengthBytes = new byte[Constants.CERTIFICATE_LENGTH];
             //get hand shake content length
             Buffer.BlockCopy(bytes, offset, certificatesLengthBytes, 0, Constants.CERTIFICATE_LENGTH);
             sslMessage.Append(certificatesLengthBytes);
-            offset += Constants.CERTIFICATE_LENGTH;
+            start += Constants.CERTIFICATE_LENGTH;
 
-            //uint length = BitConverter.ToUInt32(new byte[] { 0,certificatesLengthBytes[2], certificatesLengthBytes[1], certificatesLengthBytes[0] }, 0);
+            int certificatesLength = BitConverter.ToInt32(new byte[] { certificatesLengthBytes[2], certificatesLengthBytes[1], certificatesLengthBytes[0], 0 }, 0);
 
             //目前只有一个证书
-            //while (offset < bytes.Length)
+            //while (start < bytes.Length)
             //{
-
-                byte[] certificateLengthBytes = new byte[Constants.CERTIFICATE_LENGTH];
-                //get hand shake content length
-                Buffer.BlockCopy(bytes, offset, certificateLengthBytes, 0, Constants.CERTIFICATE_LENGTH);
-                sslMessage.Append(certificateLengthBytes);
-                offset += Constants.CERTIFICATE_LENGTH;
-
-                byte[] certificateBytes = new byte[bytes.Length - offset];
-                //get Cipher Suites Length version
-                Buffer.BlockCopy(bytes, offset, certificateBytes, 0, bytes.Length - offset);
-                sslMessage.Append(certificateBytes);
+            byte[] certificateLengthBytes = new byte[Constants.CERTIFICATE_LENGTH];
+            //get hand shake content length
+            Buffer.BlockCopy(bytes, start, certificateLengthBytes, 0, Constants.CERTIFICATE_LENGTH);
+            sslMessage.Append(certificateLengthBytes);
+            //暂时只加载第一个证书
+            int certificateLength = BitConverter.ToInt32(new byte[] {certificateLengthBytes[2], certificateLengthBytes[1], certificateLengthBytes[0] ,0}, 0);
+            start += Constants.CERTIFICATE_LENGTH;
+            byte[] certificateBytes = new byte[certificateLength];
+            //get Cipher Suites Length version
+            Buffer.BlockCopy(bytes, start, certificateBytes, 0, certificateLength);
+            sslMessage.Append(certificateBytes);
             //}
+            //加上总长度，多个证书不加载后面的证书，
+            //length包含了Constants.CERTIFICATE_LENGTH，前面为了取证书偏移了一次。
+            offset += length;
         }
-        private static void GetServerHelloDoneLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static void GetServerHelloDoneLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
             byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_CONTENT_LENGTH];
             //get hand shake content length
             Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_CONTENT_LENGTH);
             sslMessage.Append(handShakeContentLengthBytes);
+            offset += Constants.HAND_SHAKE_CONTENT_LENGTH;
         }
         /// <summary>
         /// ContentType (1,handshake:22)
@@ -382,21 +393,20 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
-        private static void GetClientKeyExchangeLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static void GetClientKeyExchangeLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
-            GetHandShakeContentLength(bytes, ref offset, sslMessage);
-
+            int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
             byte[] keyLengthBytes = new byte[Constants.RSA_KEY_LENGTH];
             //get hand shake content length
             Buffer.BlockCopy(bytes, offset, keyLengthBytes, 0, Constants.RSA_KEY_LENGTH);
             sslMessage.Append(keyLengthBytes);
             offset += Constants.RSA_KEY_LENGTH;
 
-            byte[] clientKeyExchangeBytes = new byte[bytes.Length - offset];
+            byte[] clientKeyExchangeBytes = new byte[length - Constants.RSA_KEY_LENGTH];
             //get master key 
-            Buffer.BlockCopy(bytes, offset, clientKeyExchangeBytes, 0, bytes.Length - offset);
+            Buffer.BlockCopy(bytes, offset, clientKeyExchangeBytes, 0, length - Constants.RSA_KEY_LENGTH);
             sslMessage.Append(clientKeyExchangeBytes);
+            offset += length - Constants.RSA_KEY_LENGTH;
         }
         /// <summary>
         /// ContentType (1,handshake:22)
@@ -409,13 +419,13 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
-        private static void GetFinishLayer(HandshakeType handshakeType, byte[] bytes, NetMQMessage sslMessage)
+        private static void GetFinishLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            int offset = 1;
             byte[] verifyDataBytes = new byte[bytes.Length - offset];
             //get master key length
             Buffer.BlockCopy(bytes, offset, verifyDataBytes, 0, bytes.Length - offset);
             sslMessage.Append(verifyDataBytes);
+            offset += verifyDataBytes.Length;
         }
         #endregion
     }

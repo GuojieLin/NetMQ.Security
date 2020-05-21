@@ -1,4 +1,7 @@
-﻿using System;
+﻿using NetMQ.Security.Extensions;
+using System;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
@@ -22,8 +25,28 @@ namespace NetMQ.Security.V0_1
 
         private HMAC m_decryptionHMAC;
         private HMAC m_encryptionHMAC;
-
-        private ulong m_sequenceNumber = 0;
+        /// <summary>
+        /// Each connection state contains a sequence number, which is maintained separately for read and write states.
+        /// The sequence number MUST be set to zero whenever a connection state is made theactive state.  
+        /// Sequence numbers are of type uint64 and may not exceed 2^64-1.  
+        /// Sequence numbers do not wrap.  
+        /// If a TLSimplementation would need to wrap a sequence number, it must renegotiate instead.  
+        /// A sequence number is incremented after each record: specifically, the first record transmitted under a particular connection state MUST use sequence number 0.
+        /// The master_secret is hashed with the ClientHello.random and ServerHello.random to produce unique data encryption keys and MAC secrets for each connection.
+        /// Outgoing data is protected with a MAC before transmission.
+        /// To prevent message replay or modification attacks, the MAC is computed from the MAC key, the sequence number, the message length, the
+        /// message contents, and two fixed character strings.  
+        /// The message type field is necessary to ensure that messages intended for one TLS record layer client are not redirected to another.
+        /// The sequence number ensures that attempts to delete or reorder messages will be detected.
+        /// Since sequence numbers are 64 bits long, they should never overflow.Messages from one party cannot be inserted into the other's output, since they use independent MAC keys.  
+        /// Similarly, the server write and client write keys are independent, so stream cipher keys are used only once. 
+        /// If an attacker does break an encryption key, all messages encrypted with it can be read.Similarly, compromise of a MAC key can make message - modification attacks possible.Because MACs are also encrypted, message - alteration attacks generally require breaking the encryption algorithm as well as the MAC.
+        /// Note: MAC keys may be larger than encryption keys, so messages can remain tamper resistant even if encryption keys are broken.
+        /// </summary>
+        private ulong m_readSequenceNumber = 0;
+        private ulong m_writeSequenceNumber = 0;
+        private object m_readLock = new object();
+        private object m_writeLock = new object();
 
         private byte[] m_SubProtocolVersion;
         private ulong m_leftWindow = 0;
@@ -55,6 +78,9 @@ namespace NetMQ.Security.V0_1
           out byte[] clientMAC, out byte[] serverMAC,
           out byte[] clientEncryptionKey, out byte[] serverEncryptionKey)
         {
+            //The master secret is expanded into a sequence of secure bytes, which is then split to a client write MAC key, a server write MAC key, a   client write encryption key, and a server write encryption key.
+            //Each of these is generated from the byte sequence in that order.  
+            //Unused values are empty.  Some AEAD ciphers may additionally require a client write IV and a server write IV(see Section 6.2.3.3).
             byte[] seed = new byte[HandshakeLayer.RandomNumberLength * 2];
 
             Buffer.BlockCopy(SecurityParameters.ServerRandom, 0, seed, 0, HandshakeLayer.RandomNumberLength);
@@ -99,6 +125,12 @@ namespace NetMQ.Security.V0_1
 
             GenerateKeys(out clientMAC, out serverMAC, out clientEncryptionKey, out serverEncryptionKey);
 
+#if DEBUG
+            Debug.WriteLine("[client mac key]:" + BitConverter.ToString(clientMAC));
+            Debug.WriteLine("[server mac key]:" + BitConverter.ToString(serverMAC));
+            Debug.WriteLine("[client encrypt key]:" + BitConverter.ToString(clientEncryptionKey));
+            Debug.WriteLine("[server encrypt key]:" + BitConverter.ToString(serverEncryptionKey));
+#endif
             if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.AES)
             {
                 m_decryptionBulkAlgorithm = new AesCryptoServiceProvider
@@ -165,71 +197,44 @@ namespace NetMQ.Security.V0_1
 
         /// <param name="contentType">This identifies the type of content: ChangeCipherSpec, Handshake, or ApplicationData.</param>
         /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
-        public NetMQMessage EncryptMessage(ContentType contentType, NetMQMessage plainMessage)
+        public byte[] EncryptMessage(ContentType contentType, byte[] plainBytes)
         {
             if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.Null &&
               SecurityParameters.MACAlgorithm == MACAlgorithm.Null)
             {
-                return plainMessage;
+                return plainBytes;
             }
-
-            NetMQMessage cipherMessage = new NetMQMessage();
-            lock (m_encryptionBulkAlgorithm)
+            ulong seqNum = GetAndIncreaseWriteSequneceNumber();
+            //CBC块加密
+            //struct {
+            //    opaque IV[SecurityParameters.record_iv_length];
+            //    block-ciphered struct {
+            //        opaque content[TLSCompressed.length];
+            //        opaque MAC[SecurityParameters.mac_length];
+            //        uint8 padding[GenericBlockCipher.padding_length];
+            //        uint8 padding_length;
+            //    };
+            //} GenericBlockCipher;
+            using (var encryptor = m_encryptionBulkAlgorithm.CreateEncryptor())
             {
-                using (var encryptor = m_encryptionBulkAlgorithm.CreateEncryptor())
-                {
-                    ulong seqNum = GetAndIncreaseSequneceNumber();
-                    byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
+                byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
+                //在密码学的领域里，初始向量（英语：initialization vector，缩写为IV），或译初向量，又称初始变量（starting variable，缩写为SV）[1]，是一个固定长度的输入值。一般的使用上会要求它是随机数或拟随机数（pseudorandom）。使用随机数产生的初始向量才能达到语义安全（消息验证码也可能用到初始向量），并让攻击者难以对原文一致且使用同一把密钥生成的密文进行破解。在区块加密中，使用了初始向量的加密模式被称为区块加密模式。 
+                //有些密码运算只要求初始向量不要重复，并只要求它用是内部求出的随机数值（这类随机数实际上不够乱）。在这类应用下，初始向量通常被称为nonce（临时使用的数值），是可控制的（stateful）而不是随机数。这种作法是因为初始向量不会被寄送到密文的接收方，而是收发两方透过事前约定的机制自行计算出对应的初始向量（不过，实现上还是经常会把nonce送过去以便检查消息的遗漏）。计数器模式中使用序列的方式来作为初始向量，它就是一种可控制之初始向量的加密模式。 
+                byte[] iv = GenerateIV(encryptor, seqNumBytes);
 
-                    var iv = GenerateIV(encryptor, seqNumBytes);
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                    {
-                        //增加长度2个字符
-                        var lengthBytes = BitConverter.GetBytes(iv.Length);
-                        cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
-                    }
-                    cipherMessage.Append(iv);
+#if DEBUG
+                Debug.WriteLine("[iv]:" + BitConverter.ToString(iv));
+#endif
+                byte[] cipherBytes = EncryptBytes(encryptor, contentType, seqNum, plainBytes);
 
-                    // including the frame number in the message to make sure the frames are not reordered
-                    int frameIndex = 0;
+                byte[] genericBlockCipher = new byte[iv.Length + cipherBytes.Length];
+                Buffer.BlockCopy(iv, 0, genericBlockCipher, 0, iv.Length);
+                Buffer.BlockCopy(cipherBytes, 0, genericBlockCipher, iv.Length, cipherBytes.Length);
+#if DEBUG
+                Debug.WriteLine("[TLSCiphertext]:" + BitConverter.ToString(genericBlockCipher));
+#endif
+                return genericBlockCipher;
 
-                    // the first frame is the sequence number and the number of frames to make sure frames was not removed
-                    byte[] frameBytes = new byte[12];
-                    Buffer.BlockCopy(seqNumBytes, 0, frameBytes, 0, 8);
-                    int frameCount = plainMessage.FrameCount;
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                    {
-                        frameCount += plainMessage.FrameCount;
-                    }
-                    Buffer.BlockCopy(BitConverter.GetBytes(frameCount), 0, frameBytes, 8, 4);
-
-                    byte[] cipherSeqNumBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, frameBytes);
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                    {
-                        //增加长度2个字符
-                        var lengthBytes = BitConverter.GetBytes(cipherSeqNumBytes.Length);
-                        cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
-                    }
-                    cipherMessage.Append(cipherSeqNumBytes);
-
-                    frameIndex++;
-
-                    foreach (NetMQFrame plainFrame in plainMessage)
-                    {
-                        byte[] cipherBytes = EncryptBytes(encryptor, contentType, seqNum, frameIndex, plainFrame.ToByteArray());
-                        if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                        {
-                            //增加长度2个字符
-                            var lengthBytes = BitConverter.GetBytes(cipherBytes.Length);
-                            cipherMessage.Append(new byte[] { lengthBytes[1], lengthBytes[0] });
-                        }
-                        cipherMessage.Append(cipherBytes);
-
-                        frameIndex++;
-                    }
-
-                    return cipherMessage;
-                }
             }
         }
 
@@ -260,28 +265,44 @@ namespace NetMQ.Security.V0_1
         /// <summary>
         /// Increment and return the sequence-number.
         /// </summary>
-        private ulong GetAndIncreaseSequneceNumber()
+        internal ulong GetAndIncreaseReadSequneceNumber()
         {
-            return m_sequenceNumber++;
+            lock (m_readLock)
+            {
+                return m_readSequenceNumber++;
+            }
+        }
+        internal ulong GetAndIncreaseWriteSequneceNumber()
+        {
+            lock (m_writeLock)
+            {
+                return m_writeSequenceNumber++;
+            }
         }
 
-        private byte[] EncryptBytes(ICryptoTransform encryptor, ContentType contentType, ulong seqNum,
-          int frameIndex, byte[] plainBytes)
+        private byte[] EncryptBytes(ICryptoTransform encryptor, ContentType contentType, ulong seqNum, byte[] plainBytes)
         {
             byte[] mac;
-
+            //记录有效负载保护
+            //加密和 MAC 功能将 TLS 压缩结构转换为 TLSCipher 文本。 解密功能反转该过程。 
+            //记录的 MAC 还包括一个序列号，以便可检测到缺失、额外或重复的消息。
+            //  struct {
+            //       ContentType type;
+            //        ProtocolVersion version;
+            //        uint16 length;
+            //        opaque fragment[TLSPlaintext.length];
+            //    }
+            //    TLSPlaintext;
             if (SecurityParameters.MACAlgorithm != MACAlgorithm.Null)
             {
                 byte[] versionAndType = new[] { (byte)contentType, m_SubProtocolVersion[0], m_SubProtocolVersion[1] };
-                byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
-                byte[] messageSize = BitConverter.GetBytes(plainBytes.Length);
-                byte[] frameIndexBytes = BitConverter.GetBytes(frameIndex);
+                byte[] seqNumBytes = BitConverter.GetBytes(seqNum).Reverse().ToArray();//大端
+                byte[] messageSize = BitConverter.GetBytes((ushort)plainBytes.Length).Take(2).Reverse().ToArray();//长度2字节
 
                 m_encryptionHMAC.Initialize();
                 m_encryptionHMAC.TransformBlock(seqNumBytes, 0, seqNumBytes.Length, seqNumBytes, 0);
                 m_encryptionHMAC.TransformBlock(versionAndType, 0, versionAndType.Length, versionAndType, 0);
                 m_encryptionHMAC.TransformBlock(messageSize, 0, messageSize.Length, messageSize, 0);
-                m_encryptionHMAC.TransformBlock(frameIndexBytes, 0, frameIndexBytes.Length, frameIndexBytes, 0);
                 m_encryptionHMAC.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
                 mac = m_encryptionHMAC.Hash;
             }
@@ -306,7 +327,12 @@ namespace NetMQ.Security.V0_1
 
             Buffer.BlockCopy(plainBytes, 0, cipherBytes, 0, plainBytes.Length);
             Buffer.BlockCopy(mac, 0, cipherBytes, plainBytes.Length, SecurityParameters.MACLength);
-
+#if DEBUG
+            Debug.WriteLine("[TLSPlaintext]:" + BitConverter.ToString(cipherBytes));
+            Debug.WriteLine("[TLSPlaintext.data]:" + BitConverter.ToString(plainBytes));
+            Debug.WriteLine("[TLSPlaintext.mac]:" + BitConverter.ToString(mac));
+            Debug.WriteLine("[TLSPlaintext.padding]:" + padding);
+#endif
             if (SecurityParameters.BulkCipherAlgorithm != BulkCipherAlgorithm.Null)
             {
                 for (int i = plainBytes.Length + SecurityParameters.MACLength; i < cipherBytes.Length; i++)
@@ -316,7 +342,6 @@ namespace NetMQ.Security.V0_1
 
                 encryptor.TransformBlock(cipherBytes, 0, cipherBytes.Length, cipherBytes, 0);
             }
-
             return cipherBytes;
         }
 
@@ -331,82 +356,42 @@ namespace NetMQ.Security.V0_1
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.EncryptedFramesMissing"/>: Frames were removed from the encrypted message.</exception>
         public NetMQMessage DecryptMessage(ContentType contentType, NetMQMessage cipherMessage)
         {
+            NetMQMessage message = new NetMQMessage();
+            byte[] bytes = DecryptMessage(contentType,cipherMessage.Last.Buffer);
+            message.Append(bytes);
+            return message;
+        }
+        public byte[] DecryptMessage(ContentType contentType, byte[] cipherMessage)
+        {
             if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.Null &&
               SecurityParameters.MACAlgorithm == MACAlgorithm.Null)
             {
                 return cipherMessage;
             }
-
-            if (cipherMessage.FrameCount < 2)
+            //从第一个加密块开始计算
+            ulong seqNum = GetAndIncreaseReadSequneceNumber();
+            if (cipherMessage.Length < SecurityParameters.RecordIVLength)
             {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "cipher message should have at least 2 frames, iv and sequence number");
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFrameInvalidLength, "IV size not enough");
             }
+            byte[] ivBytes = new byte[SecurityParameters.RecordIVLength];
+            Buffer.BlockCopy(cipherMessage, 0, ivBytes, 0, ivBytes.Length);
+            byte[] cipherBytes = new byte[cipherMessage.Length - SecurityParameters.RecordIVLength];
+            Buffer.BlockCopy(cipherMessage, ivBytes.Length, cipherBytes, 0, cipherBytes.Length);
 
-            if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
+
+#if DEBUG
+            Debug.WriteLine("[iv]:" + BitConverter.ToString(ivBytes));
+#endif
+            using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor(m_decryptionBulkAlgorithm.Key, ivBytes))
             {
-                NetMQFrame ivLengthFrame = cipherMessage.Pop();
-            }
-            NetMQFrame ivFrame = cipherMessage.Pop();
-            lock (m_decryptionBulkAlgorithm)
-            {
-                m_decryptionBulkAlgorithm.IV = ivFrame.ToByteArray();
+                byte[] padding;
+                byte[] data;
+                byte[] mac;
 
-                using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor())
-                {
-                    NetMQMessage plainMessage = new NetMQMessage();
-
-                    if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                    {
-                        NetMQFrame seqNumFrameLength = cipherMessage.Pop();
-                    }
-                    NetMQFrame seqNumFrame = cipherMessage.Pop();
-
-                    byte[] frameBytes;
-                    byte[] seqNumMAC;
-                    byte[] padding;
-
-                    DecryptBytes(decryptor, seqNumFrame.ToByteArray(), out frameBytes, out seqNumMAC, out padding);
-
-                    ulong seqNum = BitConverter.ToUInt64(frameBytes, 0);
-                    int frameCount = BitConverter.ToInt32(frameBytes, 8);
-
-                    int frameIndex = 0;
-
-                    ValidateBytes(contentType, seqNum, frameIndex, frameBytes, seqNumMAC, padding);
-
-                    if (CheckReplayAttack(seqNum))
-                    {
-                        throw new NetMQSecurityException(NetMQSecurityErrorCode.ReplayAttack,
-                                      "Message already handled or very old message, might be under replay attack");
-                    }
-
-                    if (frameCount != cipherMessage.FrameCount)
-                    {
-                        throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFramesMissing, "Frames was removed from the encrypted message");
-                    }
-
-                    frameIndex++;
-                    for (int i = 0; i < cipherMessage.FrameCount; i++)
-                    {
-
-                        if (m_SubProtocolVersion.SequenceEqual(Constants.V3_3))
-                        {
-                            i++;
-                        }
-                        NetMQFrame cipherFrame = cipherMessage[i];
-                        byte[] data;
-                        byte[] mac;
-
-                        DecryptBytes(decryptor, cipherFrame.ToByteArray(), out data, out mac, out padding);
-                        ValidateBytes(contentType, seqNum, frameIndex, data, mac, padding);
-
-                        frameIndex++;
-
-                        plainMessage.Append(data);
-                    }
-
-                    return plainMessage;
-                }
+                DecryptBytes(decryptor, cipherBytes, out data, out mac, out padding);
+                ValidateBytes(contentType, seqNum, data, mac, padding);
+                return data;
             }
         }
 
@@ -414,6 +399,9 @@ namespace NetMQ.Security.V0_1
         private void DecryptBytes(ICryptoTransform decryptor, byte[] cipherBytes,
           out byte[] plainBytes, out byte[] mac, out byte[] padding)
         {
+#if DEBUG
+            Debug.WriteLine("[TLSCiphertext]:" + BitConverter.ToString(cipherBytes));
+#endif
             if (cipherBytes.Length % decryptor.InputBlockSize != 0)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFrameInvalidLength, "Invalid block size for cipher bytes");
@@ -426,8 +414,19 @@ namespace NetMQ.Security.V0_1
 
             if (SecurityParameters.BulkCipherAlgorithm != BulkCipherAlgorithm.Null)
             {
+                //using (MemoryStream memoryStream = new MemoryStream(cipherBytes))
+                //{
+                //    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read))
+                //    {
+                //        // Read the decrypted bytes from the decrypting stream
+                //        // and place them in a string.
+                //        cryptoStream.Read(frameBytes, 0, frameBytes.Length);
+                //    }
+                //}
                 decryptor.TransformBlock(cipherBytes, 0, cipherBytes.Length, frameBytes, 0);
-
+#if DEBUG
+                Debug.WriteLine("[TLSPlaintext]:" + BitConverter.ToString(cipherBytes));
+#endif
                 paddingSize = frameBytes[frameBytes.Length - 1] + 1;
 
                 if (paddingSize > decryptor.InputBlockSize)
@@ -461,6 +460,11 @@ namespace NetMQ.Security.V0_1
 
             padding = new byte[paddingSize];
             Buffer.BlockCopy(frameBytes, dataLength + SecurityParameters.MACLength, padding, 0, paddingSize);
+#if DEBUG
+            Debug.WriteLine("[TLSPlaintext.data]:" + BitConverter.ToString(plainBytes));
+            Debug.WriteLine("[TLSPlaintext.mac]:" + BitConverter.ToString(mac));
+            Debug.WriteLine("[TLSPlaintext.padding]:" + paddingSize);
+#endif
         }
 
         /// <summary>
@@ -473,23 +477,25 @@ namespace NetMQ.Security.V0_1
         /// <param name="mac"></param>
         /// <param name="padding"></param>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.MACNotMatched"/>: MAC does not match message.</exception>
-        public void ValidateBytes(ContentType contentType, ulong seqNum, int frameIndex,
-          byte[] plainBytes, byte[] mac, byte[] padding)
+        public void ValidateBytes(ContentType contentType, ulong seqNum, byte[] plainBytes, byte[] mac, byte[] padding)
         {
             if (SecurityParameters.MACAlgorithm != MACAlgorithm.Null)
             {
-                byte[] versionAndType = new[] { (byte)contentType, m_SubProtocolVersion[0], m_SubProtocolVersion[1] };
-                byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
-                byte[] messageSize = BitConverter.GetBytes(plainBytes.Length);
-                byte[] frameIndexBytes = BitConverter.GetBytes(frameIndex);
-
+                byte[] typeAndVersion = new[] { (byte)contentType, m_SubProtocolVersion[0], m_SubProtocolVersion[1] };
+                byte[] seqNumBytes = BitConverter.GetBytes(seqNum).Reverse().ToArray();
+                byte[] messageSize = BitConverter.GetBytes(plainBytes.Length).Take(2).Reverse().ToArray();
+                //byte[] messageSize = plainBytes.LengthToBytes(2);
                 m_decryptionHMAC.Initialize();
                 m_decryptionHMAC.TransformBlock(seqNumBytes, 0, seqNumBytes.Length, seqNumBytes, 0);
-                m_decryptionHMAC.TransformBlock(versionAndType, 0, versionAndType.Length, versionAndType, 0);
+                m_decryptionHMAC.TransformBlock(typeAndVersion, 0, typeAndVersion.Length, typeAndVersion, 0);
                 m_decryptionHMAC.TransformBlock(messageSize, 0, messageSize.Length, messageSize, 0);
-                m_decryptionHMAC.TransformBlock(frameIndexBytes, 0, frameIndexBytes.Length, frameIndexBytes, 0);
                 m_decryptionHMAC.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
-
+                //MAC(MAC_write_key, seq_num +
+                //      TLSCompressed.type +
+                //      TLSCompressed.version +
+                //      TLSCompressed.length +
+                //      TLSCompressed.fragment);
+                //where "+" denotes concatenation.
                 if (!m_decryptionHMAC.Hash.SequenceEqual(mac))
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.MACNotMatched, "MAC does not match message");

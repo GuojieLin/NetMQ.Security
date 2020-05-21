@@ -66,6 +66,7 @@ namespace NetMQ.Security
         /// Verify data on finished message failed
         /// </summary>
         HandshakeVerifyData,
+        HandshakeException,
     }
 
     /// <summary>

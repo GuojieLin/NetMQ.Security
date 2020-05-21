@@ -6,7 +6,7 @@ using NUnit.Framework;
 
 namespace NetMQ.Security.Tests
 {
-    [TestFixture]
+    [Ignore("V0.1非标准TLS不再使用")]
     public class V0_1SecureChannelTests
     {
         private SecureChannel m_clientSecureChannel;

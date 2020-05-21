@@ -22,7 +22,7 @@ namespace NetMQ.Console
             // SecureChannel for each identity
             using (var socket = new DealerSocket())
             {
-                socket.Bind("tcp://*:5556");
+                socket.Bind("tcp://*:9696");
 
                 using (SecureChannel secureChannel = SecureChannel.CreateServerSecureChannel(m_configuration))
                 {

@@ -29,6 +29,23 @@ namespace NetMQ.Security.V0_1
     /// SHA-256 is a 256-bit hash and is meant to provide 128 bites of security against collision attacks.
     /// SHA stands for Secure Hashing Algorithm, and is a type of PRF.
     /// PRF stands for Pseudo-Random number generating Function, and <see cref="IPRF"/> is an interface that mandates the Get method.
+    /// 
+    /// First, we define a data expansion function, P_hash(secret, data),
+    ///    that uses a single hash function to expand a secret and seed into an
+    ///   arbitrary quantity of output:
+    ///      P_hash(secret, seed) = HMAC_hash(secret, A(1) + seed) +
+    ///                             HMAC_hash(secret, A(2) + seed) +
+    ///                             HMAC_hash(secret, A(3) + seed) + ...
+    ///   where + indicates concatenation.
+    ///   A() is defined as:
+    ///      A(0) = seed
+    ///      A(i) = HMAC_hash(secret, A(i-1))
+    ///   P_hash can be iterated as many times as necessary to produce the
+    ///   required quantity of data.For example, if P_SHA256 is being used to
+    ///   create 80 bytes of data, it will have to be iterated three times
+    ///   (through A(3)), creating 96 bytes of output data; the last 16 bytes
+    ///   of the final iteration will then be discarded, leaving 80 bytes of
+    ///   output data.
     /// </remarks>
     public class SHA256PRF : IPRF
     {

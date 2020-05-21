@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 
 namespace NetMQ.Security.V0_1
 {
@@ -31,9 +34,12 @@ namespace NetMQ.Security.V0_1
         /// encrypt and wrap it as a ChangeCipherSpec type of content.
         /// </summary>
         /// <param name="message">the NetMQMessage to add to the list that this object is holding</param>
-        public void AddCipherChangeMessage(NetMQMessage message)
+        public void AddCipherChangeMessage(byte[] message)
         {
-            m_messages.Add(m_secureChannel.InternalEncryptAndWrapMessage(ContentType.ChangeCipherSpec, message));
+            byte[] bytes = m_secureChannel.WrapToRecordLayerMessage(ContentType.ChangeCipherSpec, message);
+            NetMQMessage tlsMessage = new NetMQMessage();
+            tlsMessage.Append(bytes);
+            m_messages.Add(tlsMessage);
         }
 
         /// <summary>
@@ -41,11 +47,31 @@ namespace NetMQ.Security.V0_1
         /// encrypt and wrap it as a Handshake type of content.
         /// </summary>
         /// <param name="message">the NetMQMessage to add to the list that this object is holding</param>
-        public void AddHandshakeMessage(NetMQMessage message)
+        public void AddHandshakeMessage(NetMQMessage handshakeMessage)
         {
-            m_messages.Add(m_secureChannel.InternalEncryptAndWrapMessage(ContentType.Handshake, message));
+            byte[] bytes = new byte[handshakeMessage.Sum(f=>f.BufferSize)];
+            int offset = 0;
+            foreach (var frame in handshakeMessage)
+            {
+                Buffer.BlockCopy(frame.Buffer, 0, bytes, offset, frame.BufferSize);
+                offset += frame.BufferSize;
+            }
+            AddHandshakeMessage(bytes);
         }
+        public void AddHandshakeMessage(byte[] message)
+        {
+#if DEBUG
+            Debug.WriteLine("[handshake(" + message.Length + ")]" + BitConverter.ToString(message));
+#endif
+            byte[] bytes = m_secureChannel.WrapToRecordLayerMessage(ContentType.Handshake, message);
 
+#if DEBUG
+            Debug.WriteLine("[record layer(" + message.Length + ")]:" + BitConverter.ToString(message));
+#endif
+            NetMQMessage tlsMessage = new NetMQMessage();
+            tlsMessage.Append(bytes);
+            m_messages.Add(tlsMessage);
+        }
         /// <summary>
         /// Empty the list of NetMQMessages that this object holds.
         /// </summary>
