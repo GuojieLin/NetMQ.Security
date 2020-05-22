@@ -151,7 +151,7 @@ namespace NetMQ.Security.V0_1
         /// 当前使用的子版本。
         /// 3.3是标准的TLS1.2版本协议。
         /// </summary>
-        public byte[] SubProtocolVersion { get; private set; }
+        public ProtocolVersion SubProtocolVersion { get; private set; }
         /// <summary>
         /// Given an incoming handshake-protocol message, route it to the corresponding handler.
         /// </summary>
@@ -319,17 +319,10 @@ namespace NetMQ.Security.V0_1
             // and copy the resulting hash value back into the same byte-array.
             hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
         }
-        private byte[] GetSubProtocol()
-        {
-            return m_secureChannel.Configuration.StandardTLSFormat ? Constants.V3_3 : Constants.V0_1;
-        }
         private void OnHelloRequest(OutgoingMessageBag outgoingMessages)
         {
             //客户端根据配置决定握手层版本号
-            SubProtocolVersion = GetSubProtocol();
-            var clientHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3) ?
-                new V0_2.HandshakeMessages.ClientHelloMessage() :
-                new ClientHelloMessage();
+            var clientHelloMessage = new ClientHelloMessage();
             clientHelloMessage.RandomNumber = new byte[RandomNumberLength];
 
             clientHelloMessage.SessionID = SessionID;
@@ -364,26 +357,16 @@ namespace NetMQ.Security.V0_1
 
             var handShakeTypeFrame = incomingMessage.Pop();
             //服务端根据主版本号先判断
-            if(m_secureChannel.ProtocolVersion.SequenceEqual(Constants.V0_1))
-            {
-                //没有长度，没有子版本号,使用Record的版本号一致
-                SubProtocolVersion = m_secureChannel.ProtocolVersion;
-            }
-            else 
-            {
-                //标准的获取长度和版本号，并校验
-                var handShakeLengthFrame = incomingMessage.Pop();
-                NetMQFrame versionFrame = incomingMessage.Pop();
-                SubProtocolVersion = versionFrame.Buffer;
-            }
-            if (!Constants.SupposeSubVersions.Any(v => v.SequenceEqual(SubProtocolVersion)))
+            var handShakeLengthFrame = incomingMessage.Pop();
+            NetMQFrame versionFrame = incomingMessage.Pop();
+            SubProtocolVersion = (ProtocolVersion)versionFrame.Buffer;
+
+            if (!this.m_secureChannel.Configuration.SupposeProtocolVersions.Any(v => v.Equals(SubProtocolVersion)))
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
             }
             //获取保存子协议版本
-            var clientHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3) ?
-                new V0_2.HandshakeMessages.ClientHelloMessage() :
-               new ClientHelloMessage();
+            var clientHelloMessage = new ClientHelloMessage();
 
             clientHelloMessage.SetFromNetMQMessage(incomingMessage);
             //获取到客户端的sessionid
@@ -399,9 +382,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloDone(OutgoingMessageBag outgoingMessages)
         {
-            var serverHelloDoneMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.ServerHelloDoneMessage():
-                new ServerHelloDoneMessage();
+            var serverHelloDoneMessage = new ServerHelloDoneMessage();
             NetMQMessage outgoingMessage = serverHelloDoneMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
@@ -410,9 +391,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddCertificateMessage(OutgoingMessageBag outgoingMessages)
         {
-            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.CertificateMessage():
-                new CertificateMessage ();
+            var certificateMessage = new CertificateMessage ();
             certificateMessage.Certificate = LocalCertificate;
             NetMQMessage outgoingMessage = certificateMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
@@ -422,9 +401,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
         {
-            var serverHelloMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.ServerHelloMessage():
-                new ServerHelloMessage ();
+            var serverHelloMessage = new ServerHelloMessage ();
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
             m_rng.GetBytes(serverHelloMessage.RandomNumber);
 
@@ -476,24 +453,15 @@ namespace NetMQ.Security.V0_1
 
             var handShakeTypeFrame = incomingMessage.Pop();
             //服务端根据主版本号先判断
-            if (SubProtocolVersion.SequenceEqual(Constants.V0_1))
-            {
-
-            }
-            else
-            {
                 //标准的获取长度和版本号，并校验
-                var handShakeLengthFrame = incomingMessage.Pop();
-                NetMQFrame versionFrame = incomingMessage.Pop();
-                SubProtocolVersion = versionFrame.Buffer;
-            }
-            if (!Constants.SupposeSubVersions.Any(v => v.SequenceEqual(SubProtocolVersion)))
+            var handShakeLengthFrame = incomingMessage.Pop();
+            NetMQFrame versionFrame = incomingMessage.Pop();
+            SubProtocolVersion = (ProtocolVersion)versionFrame.Buffer;
+            if (!this.m_secureChannel.Configuration.SupposeProtocolVersions.Any(v => v.Equals(SubProtocolVersion)))
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
             }
-            var serverHelloMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.ServerHelloMessage():
-                new ServerHelloMessage();
+            var serverHelloMessage =  new ServerHelloMessage();
             serverHelloMessage.SetFromNetMQMessage(incomingMessage);
             this.SessionID = serverHelloMessage.SessionID;
             SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
@@ -513,9 +481,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var certificateMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.CertificateMessage():
-                new CertificateMessage();
+            var certificateMessage = new CertificateMessage();
             certificateMessage.SetFromNetMQMessage(incomingMessage);
 
             //Awlays return false.
@@ -539,9 +505,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var serverHelloDoneMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3) ?
-                new V0_2.HandshakeMessages.ServerHelloDoneMessage() :
-                new ServerHelloDoneMessage();
+            var serverHelloDoneMessage =  new ServerHelloDoneMessage();
             serverHelloDoneMessage.SetFromNetMQMessage(incomingMessage);
 
             AddClientKeyExchange(outgoingMessages);
@@ -553,9 +517,7 @@ namespace NetMQ.Security.V0_1
 
         private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
         {
-            var clientKeyExchangeMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3) ?
-                new V0_2.HandshakeMessages.ClientKeyExchangeMessage() :
-                new ClientKeyExchangeMessage();
+            var clientKeyExchangeMessage =  new ClientKeyExchangeMessage();
             //struct {
             //      ProtocolVersion client_version;
             //    opaque random[46];
@@ -606,9 +568,7 @@ namespace NetMQ.Security.V0_1
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var clientKeyExchangeMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.ClientKeyExchangeMessage():
-                new ClientKeyExchangeMessage();
+            var clientKeyExchangeMessage = new ClientKeyExchangeMessage();
             clientKeyExchangeMessage.SetFromNetMQMessage(incomingMessage);
 
             var rsa = LocalCertificate.PrivateKey as RSACryptoServiceProvider;
@@ -639,9 +599,7 @@ namespace NetMQ.Security.V0_1
                 HashLocal(incomingMessage);
             }
 
-            var finishedMessage =SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.FinishedMessage():
-                new FinishedMessage();
+            var finishedMessage = new FinishedMessage();
             finishedMessage.SetFromNetMQMessage(incomingMessage);
 
             m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
@@ -691,9 +649,7 @@ namespace NetMQ.Security.V0_1
 
             var label = SecurityParameters.Entity == ConnectionEnd.Server ? ServerFinishedLabel : ClientFinshedLabel;
 
-            var finishedMessage = SubProtocolVersion.SequenceEqual(Constants.V3_3)?
-                new V0_2.HandshakeMessages.FinishedMessage():
-                new FinishedMessage();
+            var finishedMessage =  new FinishedMessage();
             finishedMessage.VerifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);
 #if DEBUG
             Debug.WriteLine("[verify_data]:" + BitConverter.ToString(finishedMessage.VerifyData));

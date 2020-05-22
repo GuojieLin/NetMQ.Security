@@ -9,7 +9,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
     /// </summary>
     internal class ServerHelloMessage : HandshakeMessage
     {
-        protected virtual byte[] Version { get { return Constants.V0_1; } }
+        protected virtual ProtocolVersion Version { get { return ProtocolVersion.TLS12; } }
         /// <summary>
         /// Get the part of the handshake-protocol that this HandshakeMessage represents
         /// - in this case, ServerHello.
@@ -37,7 +37,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 2.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 4)
+            if (message.FrameCount != 5)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
@@ -45,13 +45,14 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             // Get the random number
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
-            NetMQFrame sessionIDLengthFrame = message.Pop();
-            NetMQFrame sessionIDFrame = message.Pop();
-            //设置sessionid
-            this.SessionID = sessionIDFrame.ToByteArray();
+            NetMQFrame sessionIdLengthFrame = message.Pop();
+            NetMQFrame sessionIdFrame = message.Pop();
+            SessionID = sessionIdFrame.ToByteArray();
             // Get the cipher suite
             NetMQFrame cipherSuiteFrame = message.Pop();
             CipherSuite = (CipherSuite)cipherSuiteFrame.Buffer[1];
+
+            NetMQFrame compressionMethod = message.Pop();
 
         }
         /// <summary>
@@ -69,6 +70,13 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             message.Append(SessionID);
             message.Append(new byte[] { 0, (byte)CipherSuite });
 
+            var handShakeType = message.Pop();
+            var random = message.Pop();
+            message.Push(random);
+            message.Push(Version);
+            message.Append(new byte[1] { 0 });
+            InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }

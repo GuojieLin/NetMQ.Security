@@ -39,7 +39,7 @@ namespace NetMQ.Console
             //var xml2 =  myRSACryptoServiceProvider2.ToXmlString(false);
             //RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();
 
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration(){ VerifyCertificate = false};
             //Server server = new Server(configuration);
             //Action action1 = server.Do;
             //action1.BeginInvoke(ac => { action1.EndInvoke(ac); }, null);

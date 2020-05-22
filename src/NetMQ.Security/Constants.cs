@@ -39,18 +39,14 @@ namespace NetMQ.Security
         public const int MAX_TLS_PLAIN_TEXT_BYTE_SIZE = 18432;
 
 
-
-        public static byte[] V0_1 = new byte[2] { 0, 1 };
-        public static byte[] V3_3 = new byte[2] { 3, 3 };
-
         /// <summary>
         /// 服务端支持的版本,目前只支持3,3
         /// </summary>
-        public static readonly List<byte[]> SupposeVersions = new List<byte[]>() { V3_3 };
+        public static readonly List<ProtocolVersion> SupposeVersions = new List<ProtocolVersion>() { ProtocolVersion.TLS12 };
         /// <summary>
         /// 0,1是NetMQ的包格式
         /// 0,2是标准的包格式
         /// </summary>
-        public static readonly List<byte[]> SupposeSubVersions = new List<byte[]>() { V3_3 };
+        public static readonly List<ProtocolVersion> SupposeSubVersions = new List<ProtocolVersion>() { ProtocolVersion.TLS12 };
     }
 }

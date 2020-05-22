@@ -96,22 +96,6 @@ namespace NetMQ.Security.V0_1
             }
         }
         /// <summary>
-        /// 获取版本号
-        /// </summary>
-        /// <returns></returns>
-        private byte[] GetVersion(bool standardTLSFormat)
-        {
-            return Constants.V3_3.ToArray();
-        }
-        /// <summary>
-        /// 获取版本号
-        /// </summary>
-        /// <returns></returns>
-        private byte[] GetSubVersion(bool standardTLSFormat)
-        {
-            return Constants.V3_3.ToArray();
-        }
-        /// <summary>
         /// Assign the delegate to use to verify the X.509 certificate.
         /// </summary>
         /// <param name="verifyCertificate"></param>
@@ -176,7 +160,10 @@ namespace NetMQ.Security.V0_1
                     if (ProtocolVersion == null)
                     {
                         //校验记录层版本号是否支持
-                        if (Constants.SupposeVersions.Any(p => p.SequenceEqual(protocolVersionBytes)))
+                        //如果客户端不支持服务器选择的版本（或不可接受），则客户端必须发送"protocol_version"警报消息并关闭连接。
+                        //TLS 服务器还可以接收包含小于支持的最高版本的版本号的客户端Hello。 如果服务器希望与旧客户端协商，它将针对不大于 ClientHello.client_version 的服务器支持的最高版本进行。
+                        //例如，如果服务器支持 TLS 1.0、1.1 和 1.2，并且client_version TLS 1.0，则服务器将继续使用 TLS 1.0 ServerHello。 如果服务器仅支持（或愿意使用）大于client_version的版本，则必须发送`protocol_version`警报消息并关闭连接。
+                        if (this.Configuration.SupposeProtocolVersions.Any(p => ((byte[])p).SequenceEqual(protocolVersionBytes)))
                         {
                             //支持版本
                             ProtocolVersion = protocolVersionBytes;
@@ -210,7 +197,7 @@ namespace NetMQ.Security.V0_1
             {
                 //作为客户端确定使用的版本号,后续客户端和服务端通讯都要校验版本号一致性。
                 //客户端使用3,3版本
-                ProtocolVersion = GetVersion(Configuration.StandardTLSFormat);
+                ProtocolVersion = Configuration.SupposeProtocolVersions[0];
             }
 
             bool result = false;
@@ -249,11 +236,9 @@ namespace NetMQ.Security.V0_1
 
         private void RemoveLength(NetMQMessage incomingMessage)
         {
-            if (Configuration.StandardTLSFormat)
-            {
-                //去除长度
-                NetMQFrame lengthFrame = incomingMessage.Pop();
-            }
+            //去除长度
+            NetMQFrame lengthFrame = incomingMessage.Pop();
+
         }
 
         private void OnCipherSuiteChangeFromHandshakeLayer(object sender, EventArgs e)
@@ -346,12 +331,11 @@ namespace NetMQ.Security.V0_1
             /// ProtocolVersion version;33
             /// uint16 length;
             /// opaque fragment[TLSPlaintext.length];
-            if (ProtocolVersion.SequenceEqual(Constants.V3_3))
-            {
-                //增加长度
-                byte[] lengthBytes = encryptedBytes.LengthToBytes(2);
-                Buffer.BlockCopy(lengthBytes, 0, recordLayerBytes, 3, lengthBytes.Length);
-            }
+            /// 
+            //增加长度
+            byte[] lengthBytes = encryptedBytes.LengthToBytes(2);
+            Buffer.BlockCopy(lengthBytes, 0, recordLayerBytes, 3, lengthBytes.Length);
+
             Buffer.BlockCopy(encryptedBytes, 0, recordLayerBytes, 5, encryptedBytes.Length);
 
             return recordLayerBytes;
@@ -491,10 +475,9 @@ namespace NetMQ.Security.V0_1
             NetMQMessage message = new NetMQMessage();
             message.Append(new[] { (byte)ContentType.Alert });
             message.Append(ProtocolVersion.ToArray());
-            if (ProtocolVersion.SequenceEqual(Constants.V3_3))
-            {
-                message.Append(new byte[2] { 0, 2 });
-            }
+
+            message.Append(new byte[2] { 0, 2 });
+
             message.Append(new byte[1] { (byte)alertLevel });
             message.Append(new byte[1] { (byte)alertDescription });
             return message;

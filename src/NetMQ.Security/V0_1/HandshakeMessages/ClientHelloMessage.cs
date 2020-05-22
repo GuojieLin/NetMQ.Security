@@ -12,7 +12,7 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
     /// </summary>
     internal class ClientHelloMessage : HandshakeMessage
     {
-        protected virtual byte[] Version { get { return Constants.V0_1; } }
+        protected virtual ProtocolVersion Version { get { return ProtocolVersion.TLS12; } }
         /// <summary>
         /// Get or set the Random-Number that is a part of the handshake-protocol, as a byte-array.
         /// </summary>
@@ -56,19 +56,17 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 3.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 5)
+            if (message.FrameCount != 9)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
             // get the random number
             NetMQFrame randomNumberFrame = message.Pop();
             RandomNumber = randomNumberFrame.ToByteArray();
+
             NetMQFrame sessionIdLengthFrame = message.Pop();
             NetMQFrame sessionIdFrame = message.Pop();
-            this.SessionID = sessionIdFrame.ToByteArray();
-            //若为空则需要初始话一个新的sessionid
-            if (this.SessionID.Length == 0) this.SessionID = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
-
+            SessionID = sessionIdFrame.ToByteArray();
             // get the length of the cipher-suites array
             NetMQFrame ciphersLengthFrame = message.Pop();
 
@@ -84,6 +82,10 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
             {
                 CipherSuites[i] = (CipherSuite)ciphersFrame.Buffer[i * 2 + 1];
             }
+            NetMQFrame compressionMethodLength = message.Pop();
+            NetMQFrame compressionMethod = message.Pop();
+            NetMQFrame extensionsLength = message.Pop();
+            NetMQFrame extensions = message.Pop();
         }
         /// <summary>
         /// Return a new NetMQMessage that holds three frames:
@@ -104,9 +106,6 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
                 message.Append(SessionID);
             }
             int length = 2 * CipherSuites.Length;
-            ////TODO:测试
-
-            //length = 18;
             byte[] bytes = BitConverter.GetBytes(length);
             message.Append(new byte[2] { bytes[1], bytes[0] });
 
@@ -118,13 +117,19 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
                 cipherSuitesBytes[bytesIndex++] = 0;
                 cipherSuitesBytes[bytesIndex++] = (byte)cipherSuite;
             }
-            ////TODO:测试
-
-            //cipherSuitesBytes = "c0 2c c0 2b c0 2f c0 30 c0 13 c0 14 00 9c 00 2f 00 35".ConvertHexToByteArray();
-
-
             message.Append(cipherSuitesBytes);
 
+            var handShakeType = message.Pop();
+            var random = message.Pop();
+            message.Push(random);
+            message.Push(Version);
+            //压缩方法长度
+            message.Append(new byte[1] { 1 });
+            //压缩方法
+            message.Append(new byte[1] { 0 });
+            message.Append(new byte[] { 0, 0 });
+            InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }

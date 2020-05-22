@@ -19,7 +19,7 @@ namespace NetMQ.Security.Tests
         [SetUp]
         public void Setup()
         {
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration(){ VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
             m_serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -162,7 +162,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void SessionRecoverTest()
         {
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration(){ VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
             byte []sessionId = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
             SecureChannel serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -233,7 +233,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void AlertTest()
         {
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration(){ VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
             byte []sessionId = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
             SecureChannel serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -304,7 +304,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void HandShakeTest()
         {
-            Configuration configuration = new Configuration(){ VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration(){ VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
             SecureChannel serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -380,7 +380,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void AES128SHAHandShakeTest()
         {
-            Configuration configuration = new Configuration() { VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration() { VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
             SecureChannel serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);
@@ -456,7 +456,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void HandShakePacketSplicingTest()
         {
-            Configuration configuration = new Configuration() { VerifyCertificate = false, StandardTLSFormat = true };
+            Configuration configuration = new Configuration() { VerifyCertificate = false };
             X509Certificate2 certificate = new X509Certificate2(NUnit.Framework.TestContext.CurrentContext.TestDirectory + "\\server.pfx", "1234");
 
             SecureChannel serverSecureChannel = SecureChannel.CreateServerSecureChannel(configuration);

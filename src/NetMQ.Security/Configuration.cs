@@ -17,21 +17,22 @@ namespace NetMQ.Security
         /// </summary>
         public bool VerifyCertificate { get; set; }
         /// <summary>
-        /// 标准tls都有长度的，netmq由于字节的数据格式有长度，因此把tls里面的长度都去掉了。
-        /// 默认使用标准格式
+        /// 使用的TLS版本号
+        /// 默认支支持TLS12,若设置了支持多个协议，在ClientHello和ServerHello会进行协商。
+        /// 作为客户端ClientHello会使用第一个支持的版本。
+        /// 作为服务端ServerHello会按校验客户端的版本服务端是否支持，若不支持，则会返回小于服务端版本的最高版本。
         /// </summary>
-        public bool StandardTLSFormat { get; set; }
+        public ProtocolVersion[] SupposeProtocolVersions { get; set; }
 
         public X509Certificate2 Certificate { get; private set; }
 
         public Configuration()
         {
-            StandardTLSFormat = true;
+            SupposeProtocolVersions = new[] { ProtocolVersion.TLS12 };
         }
         public void LoadCert(string certificatePath, string password)
         {
-            Certificate = new X509Certificate2(certificatePath,
-                   password);
+            Certificate = new X509Certificate2(certificatePath, password);
         } 
     }
 }

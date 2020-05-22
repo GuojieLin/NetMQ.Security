@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography.X509Certificates;
+﻿using System;
+using System.Security.Cryptography.X509Certificates;
 
 namespace NetMQ.Security.V0_1.HandshakeMessages
 {
@@ -29,11 +30,14 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 1.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 1)
+            if (message.FrameCount != 4)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
 
+            NetMQFrame lengthFrame = message.Pop();
+            NetMQFrame certslengthFrame = message.Pop();
+            NetMQFrame certlengthFrame = message.Pop();
             NetMQFrame certificateFrame = message.Pop();
 
             byte[] certificateBytes = certificateFrame.ToByteArray();
@@ -50,9 +54,18 @@ namespace NetMQ.Security.V0_1.HandshakeMessages
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
-            //加长度
-            message.Append(Certificate.Export(X509ContentType.Cert));
+            byte[] certBytes = Certificate.Export(X509ContentType.Cert);
+            //加长度,证书总长度
+            var certsLengthBytes = BitConverter.GetBytes(certBytes.Length + 3);
+            message.Append(new byte[] { certsLengthBytes[2], certsLengthBytes[1], certsLengthBytes[0] });
+            //每个证书的长度和证书
+            var certLengthBytes = BitConverter.GetBytes(certBytes.Length);
+            message.Append(new byte[] { certLengthBytes[2], certLengthBytes[1], certLengthBytes[0] });
+            message.Append(certBytes);
 
+            var handShakeType = message.Pop();
+            InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
     }

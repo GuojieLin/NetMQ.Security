@@ -19,14 +19,19 @@
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 0.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 0)
+            if (message.FrameCount != 1)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
+            NetMQFrame lengthFrame = message.Pop();
         }
         public override NetMQMessage ToNetMQMessage()
         {
-            return AddHandShakeType();
+            NetMQMessage message = AddHandShakeType();
+            var handShakeType = message.Pop();
+            InsertLength(message);
+            message.Push(handShakeType);
+            return message;
         }
     }
 }

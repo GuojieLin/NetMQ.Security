@@ -1,4 +1,6 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using System;
+
+namespace NetMQ.Security.V0_1.HandshakeMessages
 {
     /// <summary>
     /// The ClientKeyExchangeMessage is a HandshakeMessage with a HandshakeType of ClientKeyExchange.
@@ -33,8 +35,13 @@
         public override NetMQMessage ToNetMQMessage()
         {
             NetMQMessage message = AddHandShakeType();
-            message.Append(EncryptedPreMasterSecret);
 
+            var encryptedPreMasterSecretLength = BitConverter.GetBytes(EncryptedPreMasterSecret.Length);
+            message.Append(new byte[] { encryptedPreMasterSecretLength[1], encryptedPreMasterSecretLength[0] });
+            message.Append(EncryptedPreMasterSecret);
+            var handShakeType = message.Pop();
+            InsertLength(message);
+            message.Push(handShakeType);
             return message;
         }
 
@@ -47,11 +54,13 @@
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: FrameCount must be 1.</exception>
         public override void SetFromNetMQMessage(NetMQMessage message)
         {
-            if (message.FrameCount != 1)
+            if (message.FrameCount != 3)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFramesCount, "Malformed message");
             }
 
+            NetMQFrame lengthFrame = message.Pop();
+            NetMQFrame encryptedPreMasterSecretLengthFrame = message.Pop();
             NetMQFrame preMasterSecretFrame = message.Pop();
 
             EncryptedPreMasterSecret = preMasterSecretFrame.ToByteArray();
