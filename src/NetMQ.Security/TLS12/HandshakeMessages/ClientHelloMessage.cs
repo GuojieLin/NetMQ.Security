@@ -1,8 +1,9 @@
-﻿using NetMQ.Security.Extensions;
+﻿using NetMQ.Security.Enums;
+using NetMQ.Security.Extensions;
 using System;
 using System.Text;
 
-namespace NetMQ.Security.V0_1.HandshakeMessages
+namespace NetMQ.Security.TLS12.HandshakeMessages
 {
     /// <summary>
     /// The ClientHelloMessage is a HandshakeMessage with a HandshakeType of ClientHello.

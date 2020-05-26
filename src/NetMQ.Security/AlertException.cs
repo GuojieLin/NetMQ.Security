@@ -1,4 +1,4 @@
-﻿using NetMQ.Security.V0_1;
+﻿using NetMQ.Security.TLS12;
 using System;
 using System.Collections.Generic;
 using System.Linq;

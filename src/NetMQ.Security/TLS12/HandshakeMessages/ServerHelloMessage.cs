@@ -1,6 +1,7 @@
-﻿using System;
+﻿using NetMQ.Security.Enums;
+using System;
 
-namespace NetMQ.Security.V0_1.HandshakeMessages
+namespace NetMQ.Security.TLS12.HandshakeMessages
 {
     /// <summary>
     /// The ServerHelloMessage is a HandshakeMessage with a <see cref="HandshakeType"/>of ServerHello.

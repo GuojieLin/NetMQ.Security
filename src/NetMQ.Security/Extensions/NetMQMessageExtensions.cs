@@ -1,5 +1,5 @@
-﻿using NetMQ.Security.V0_1;
-using NetMQ.Security.V0_1.HandshakeMessages;
+﻿using NetMQ.Security.TLS12;
+using NetMQ.Security.TLS12.HandshakeMessages;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

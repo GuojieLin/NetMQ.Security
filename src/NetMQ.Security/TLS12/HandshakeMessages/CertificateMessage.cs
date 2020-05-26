@@ -1,7 +1,8 @@
-﻿using System;
+﻿using NetMQ.Security.Enums;
+using System;
 using System.Security.Cryptography.X509Certificates;
 
-namespace NetMQ.Security.V0_1.HandshakeMessages
+namespace NetMQ.Security.TLS12.HandshakeMessages
 {
     /// <summary>
     /// The CertificateMessage is a type of HandshakeMessage with a HandshakeType of Certificate.

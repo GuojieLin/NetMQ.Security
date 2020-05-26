@@ -1,4 +1,6 @@
-﻿namespace NetMQ.Security.V0_1.HandshakeMessages
+﻿using NetMQ.Security.Enums;
+
+namespace NetMQ.Security.TLS12.HandshakeMessages
 {
     /// <summary>
     /// The ServerHelloDoneMessage is a HandshakeMessage with a HandshakeType of ServerHelloDone.

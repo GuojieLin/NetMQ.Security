@@ -1,6 +1,6 @@
 ﻿using NetMQ.Security;
 using NetMQ.Security.Extensions;
-using NetMQ.Security.V0_1;
+using NetMQ.Security.TLS12;
 using NetMQ.Sockets;
 using System;
 using System.Collections.Generic;

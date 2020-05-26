@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace NetMQ.Security.V0_1
+namespace NetMQ.Security.TLS12
 {
     /// <summary>
     /// The RecordLayer class represents the "Record Layer" within the SSL/TLS protocol layers.

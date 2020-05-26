@@ -1,4 +1,4 @@
-﻿namespace NetMQ.Security.V0_1
+﻿namespace NetMQ.Security.TLS12
 {
     /// <summary>
     /// This enum-type specifies which end of the connection -- Server or Client.

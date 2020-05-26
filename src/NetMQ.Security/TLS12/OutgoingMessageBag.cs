@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-namespace NetMQ.Security.V0_1
+namespace NetMQ.Security.TLS12
 {
     /// <summary>
     /// This class contains a list of NetMQMessages,

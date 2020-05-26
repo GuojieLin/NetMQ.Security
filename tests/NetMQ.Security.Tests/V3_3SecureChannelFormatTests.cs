@@ -5,8 +5,9 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using NetMQ.Security;
+using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
-using NetMQ.Security.V0_1;
+using NetMQ.Security.TLS12;
 using NUnit.Framework;
 
 namespace NetMQ.Security.Tests

@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace NetMQ.Security.V0_1
+namespace NetMQ.Security.TLS12
 {
     /// <summary>
     /// The IPRF interface specifies the method Get(byte[], string, byte[], int).

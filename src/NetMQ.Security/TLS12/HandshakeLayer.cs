@@ -4,10 +4,11 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
-using NetMQ.Security.V0_1.HandshakeMessages;
+using NetMQ.Security.TLS12.HandshakeMessages;
 
-namespace NetMQ.Security.V0_1
+namespace NetMQ.Security.TLS12
 {
     internal class HandshakeLayer : IDisposable
     {
@@ -328,10 +329,7 @@ namespace NetMQ.Security.V0_1
             clientHelloMessage.SessionID = SessionID;
 
             m_rng.GetBytes(clientHelloMessage.RandomNumber);
-            ////TODO: 测试
 
-            //string random = "5e c2 54 f6 fa cc f1 40 be ec 3b 43 44 1c 72 c3 25 ed 43 7a 5d cf a2 17 33 26 94 48 f7 cb 34 f9";
-            //clientHelloMessage.RandomNumber = random.ConvertHexToByteArray();
             SecurityParameters.ClientRandom = clientHelloMessage.RandomNumber;
 
             clientHelloMessage.CipherSuites = AllowedCipherSuites;
@@ -405,20 +403,10 @@ namespace NetMQ.Security.V0_1
             serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
             m_rng.GetBytes(serverHelloMessage.RandomNumber);
 
-
-            ////TODO: 测试
-
-            //string random = "ae f1 ba 12 3a 54 3c 51 7b 3d 49 87 05 80 6e 67 45 c5 76 77 74 26 01 d9 b9 da 69 79 e2 84 1d 37";
-            //serverHelloMessage.RandomNumber = random.ConvertHexToByteArray();
-
-            SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
+           SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
 
             //客户端没有传sessionid则生成一个新的sessionid
             if (this.SessionID.Length == 0) this.SessionID = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
-
-            ////TODO: 测试
-
-            //this.SessionID = "37 61 36 36 35 64 37 38 36 62 61 36 34 32 62 64 38 36 61 62 32 61 63 39 36 31 35 34 37 34 33 61".ConvertHexToByteArray();
 
             serverHelloMessage.SessionID = this.SessionID;
 
@@ -544,8 +532,7 @@ namespace NetMQ.Security.V0_1
 
 
             Buffer.BlockCopy(random, 0, premasterSecret, 2, random.Length);
-            ////TODO :测试
-            //premasterSecret = "03-03-11-41-D4-8F-8C-62-6F-31-12-40-D8-1D-F3-1C-8C-E3-6D-2F-0E-87-C6-DA-D1-17-96-CF-91-CD-EC-DB-F9-B5-52-FB-66-B6-E6-EB-65-71-1F-7A-05-25-0B-03".ConvertHexToByteArray('-');
+
             var rsa = RemoteCertificate.PublicKey.Key as RSACryptoServiceProvider;
             clientKeyExchangeMessage.EncryptedPreMasterSecret = rsa.Encrypt(premasterSecret, false);
 

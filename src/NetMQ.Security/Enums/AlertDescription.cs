@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace NetMQ.Security
+namespace NetMQ.Security.Enums
 {
     /// <summary>
     ///  Error handling in the TLS Handshake protocol is very simple.  
@@ -18,16 +18,19 @@ namespace NetMQ.Security
     ///  the sending party MAY determine at its discretion whether to treat this as a fatal error or not.
     ///  If the implementation chooses to send an alert but intends to close the connection immediately afterwards,
     ///  it MUST send that alert at the fatal alert level.
-    ///  
-    ///  If an alert with a level of warning is sent and received, generally the connection can continue normally.
-    ///  If the receiving party decides not to proceed with the connection (e.g., after having received a no_renegotiation alert that it is not willing to accept),
-    ///  it SHOULD send a fatal alert to terminate the connection.Given this, the sending party cannot, in general, know how the receiving party will behave.
-    ///  Therefore, warning alerts are not very useful when the sending party wants to continue the connection, and thus are sometimes omitted.
-    ///  For example, if a peer decides to accept an expired certificate (perhaps after confirming this with the user) and wants to continue the connection, 
-    ///  it would not generally send a certificate_expired alert.
     /// </summary>
-    public enum AlertDescription
+    public enum AlertDescription : byte
     {
+        /// <summary>
+        ///  This message notifies the recipient that the sender will not send any more messages on this connection.  
+        ///  Note that as of TLS 1.1, failure to properly close a connection no longer requires that a session not be resumed.  
+        ///  This is a change from TLS 1.0 to conform with widespread implementation practice.
+        ///  Either party may initiate a close by sending a close_notify alert.   
+        ///  Any data received after a closure alert is ignored.
+        ///  Unless some other fatal alert has been transmitted, each party is required to send a close_notify alert before closing the write side of the connection.
+        ///  The other party MUST respond with a close_notify alert of its own and close down the connection immediately, discarding any pending writes.
+        ///  It is not required for the initiator of the close to wait for the responding close_notify alert before closing the read side of the connection.
+        /// </summary>
         CloseNotify = 0,
         /// <summary>
         /// An inappropriate message was received.  

@@ -5,10 +5,11 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using JetBrains.Annotations;
+using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
-using NetMQ.Security.V0_1.HandshakeMessages;
+using NetMQ.Security.TLS12.HandshakeMessages;
 
-namespace NetMQ.Security.V0_1
+namespace NetMQ.Security.TLS12
 {
     /// <summary>
     /// Class SecureChannel implements ISecureChannel and provides a secure communication channel between a client and a server.
