@@ -65,7 +65,7 @@ namespace NetMQ.Console
                         {
                             cache = CombineV2(cache, incomingMessage.Last.Buffer);
                         }
-                        ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(cache);
+                        ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(cache);
                         //SplitInMessage
                         done = secureChannel.ResolveRecordLayer(buffer, outgoingMessages);
                         SendMessages(socket, outgoingMessages);
@@ -95,16 +95,16 @@ namespace NetMQ.Console
                         {
                             cache = CombineV2(cache, cipherMessage.Last.Buffer);
                         }
-                        ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(cache);
+                        ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(cache);
                         List<RecordLayer> sslMessages2 = new List<RecordLayer>();
                         if (secureChannel.ResolveRecordLayer(buffer, sslMessages2))
                         {
                             foreach (var message in sslMessages2)
                             {
                                 // decrypting the message
-                                ReadonlyBuffer<byte> plainMessage = secureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(message.RecordProtocols[0].HandShakeData));
+                                ReadonlyBuffer<byte> plainMessage = secureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(message.RecordProtocols[0].HandShakeData));
                                 System.Console.WriteLine(Encoding.GetEncoding("GBK").GetString(plainMessage));
-                                ReadonlyByteBuffer sendBuffer = new ReadonlyByteBuffer(Encoding.GetEncoding("GBK").GetBytes("00000021<Root>TestResp</Root>"));
+                                ReadonlyBuffer<byte> sendBuffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("00000021<Root>TestResp</Root>"));
                                 var recordLayers = secureChannel.EncryptApplicationBytes(sendBuffer);
 
                                 foreach (var recordLayer in recordLayers)

@@ -335,7 +335,7 @@ namespace NetMQ.Security.Tests
                 {
                     foreach (var message in clientOutgoingMessages)
                     {
-                        ReadonlyByteBuffer data = new ReadonlyByteBuffer(message);
+                        ReadonlyBuffer<byte> data = new ReadonlyBuffer<byte>(message);
                         serverComplete = serverSecureChannel.ResolveRecordLayer(data, serverOutgoingMessages);
                         Assert.AreEqual(data.Length, 0);
                         if (serverComplete)
@@ -350,7 +350,7 @@ namespace NetMQ.Security.Tests
                 {
                     foreach (var message in serverOutgoingMessages)
                     {
-                        ReadonlyByteBuffer data = new ReadonlyByteBuffer(message);
+                        ReadonlyBuffer<byte> data = new ReadonlyBuffer<byte>(message);
                         clientComplete = clientSecureChannel.ResolveRecordLayer(data, clientOutgoingMessages);
 
                         Assert.AreEqual(0, data.Length);
@@ -426,33 +426,11 @@ namespace NetMQ.Security.Tests
         private static string str = "10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>201709081726360</TransSeqID><VerifyCode>R+Fo9QDXJKGE8h51nDl6Nrst/LjO59CKRrNbqHq8Q8Afct0zD6BQQVuuJ7CMdE1+3LegwgvXE351r0m5qyCl1RY3XTB1Mnu5IzsmloeXbaha9v3P0aVYgWL6GAc/rD6Kiemu4VjptwZb+O81pBY8OVtCyRZjCfC4NKXDVBlbMdA=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11121</FGCommandCode><EnterpriseNum>QT330001</EnterpriseNum><FGVerifyCode>PYZjVNxLyNcRTP1A5EC0YC/Ogk7SHA8ZPeMx9Px0nxReyPKDfdGGzGwyZB5usAzlbFK/JB976z+S0wEp6SuP/1VZnUN4ZkDH+kbY2qnquD8RXSxrWmmOHlPIh9cJQGRvls1mrJQpti1FvJmeGDwdaLxdu+TLkr51LEpwZuQq6tQ=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>1</MoneyWay><TransDate>20170908</TransDate><Trans><TransNo>BR1726360000131759</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>103330101</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>1031234567890000000</CustAccNum><CustAccName>农行</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate></IsPrivate><IsUrgent></IsUrgent><Amount>1.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose>省道测试是否的腹</Purpose><Memo>备注路口见到否</Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>SO1726360000111307</SourceTransNo></Trans></RealTimeSingleTransReq></Root>"+"10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>201709081726360</TransSeqID><VerifyCode>R+Fo9QDXJKGE8h51nDl6Nrst/LjO59CKRrNbqHq8Q8Afct0zD6BQQVuuJ7CMdE1+3LegwgvXE351r0m5qyCl1RY3XTB1Mnu5IzsmloeXbaha9v3P0aVYgWL6GAc/rD6Kiemu4VjptwZb+O81pBY8OVtCyRZjCfC4NKXDVBlbMdA=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11121</FGCommandCode><EnterpriseNum>QT330001</EnterpriseNum><FGVerifyCode>PYZjVNxLyNcRTP1A5EC0YC/Ogk7SHA8ZPeMx9Px0nxReyPKDfdGGzGwyZB5usAzlbFK/JB976z+S0wEp6SuP/1VZnUN4ZkDH+kbY2qnquD8RXSxrWmmOHlPIh9cJQGRvls1mrJQpti1FvJmeGDwdaLxdu+TLkr51LEpwZuQq6tQ=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>1</MoneyWay><TransDate>20170908</TransDate><Trans><TransNo>BR1726360000131759</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>103330101</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>1031234567890000000</CustAccNum><CustAccName>农行</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate></IsPrivate><IsUrgent></IsUrgent><Amount>1.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose>省道测试是否的腹</Purpose><Memo>备注路口见到否</Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>SO1726360000111307</SourceTransNo></Trans></RealTimeSingleTransReq></Root>"+"10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>201709081726360</TransSeqID><VerifyCode>R+Fo9QDXJKGE8h51nDl6Nrst/LjO59CKRrNbqHq8Q8Afct0zD6BQQVuuJ7CMdE1+3LegwgvXE351r0m5qyCl1RY3XTB1Mnu5IzsmloeXbaha9v3P0aVYgWL6GAc/rD6Kiemu4VjptwZb+O81pBY8OVtCyRZjCfC4NKXDVBlbMdA=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11121</FGCommandCode><EnterpriseNum>QT330001</EnterpriseNum><FGVerifyCode>PYZjVNxLyNcRTP1A5EC0YC/Ogk7SHA8ZPeMx9Px0nxReyPKDfdGGzGwyZB5usAzlbFK/JB976z+S0wEp6SuP/1VZnUN4ZkDH+kbY2qnquD8RXSxrWmmOHlPIh9cJQGRvls1mrJQpti1FvJmeGDwdaLxdu+TLkr51LEpwZuQq6tQ=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>1</MoneyWay><TransDate>20170908</TransDate><Trans><TransNo>BR1726360000131759</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>103330101</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>1031234567890000000</CustAccNum><CustAccName>农行</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate></IsPrivate><IsUrgent></IsUrgent><Amount>1.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose>省道测试是否的腹</Purpose><Memo>备注路口见到否</Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>SO1726360000111307</SourceTransNo></Trans></RealTimeSingleTransReq></Root>"+"10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>201709081726360</TransSeqID><VerifyCode>R+Fo9QDXJKGE8h51nDl6Nrst/LjO59CKRrNbqHq8Q8Afct0zD6BQQVuuJ7CMdE1+3LegwgvXE351r0m5qyCl1RY3XTB1Mnu5IzsmloeXbaha9v3P0aVYgWL6GAc/rD6Kiemu4VjptwZb+O81pBY8OVtCyRZjCfC4NKXDVBlbMdA=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11121</FGCommandCode><EnterpriseNum>QT330001</EnterpriseNum><FGVerifyCode>PYZjVNxLyNcRTP1A5EC0YC/Ogk7SHA8ZPeMx9Px0nxReyPKDfdGGzGwyZB5usAzlbFK/JB976z+S0wEp6SuP/1VZnUN4ZkDH+kbY2qnquD8RXSxrWmmOHlPIh9cJQGRvls1mrJQpti1FvJmeGDwdaLxdu+TLkr51LEpwZuQq6tQ=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>1</MoneyWay><TransDate>20170908</TransDate><Trans><TransNo>BR1726360000131759</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>103330101</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>1031234567890000000</CustAccNum><CustAccName>农行</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate></IsPrivate><IsUrgent></IsUrgent><Amount>1.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose>省道测试是否的腹</Purpose><Memo>备注路口见到否</Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>SO1726360000111307</SourceTransNo></Trans></RealTimeSingleTransReq></Root>";
         private static byte[] data = Encoding.GetEncoding("GBK").GetBytes(str);
         [Test]
-        public void BigBytesData1()
-        {
-            ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(new byte[255 * 255]);
-
-            List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
-            var combineBytes = ToBytes(cipherMessage);
-            List<RecordLayer> sslMessages = new List<RecordLayer>();
-
-            ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
-
-            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1,  sslMessages);
-            Assert.AreEqual(result, true);
-            List<RecordLayer> plainMessageList = new List<RecordLayer>();
-            int sum = 0;
-            foreach (var message in sslMessages)
-            {
-                ReadonlyBuffer<byte> d= m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(message.RecordProtocols[0].HandShakeData));
-                sum += d.Length;
-            }
-            Assert.AreEqual(sum, buffer.Limit);
-        }
-        [Test]
         public void MutiBytesData()
         {
             for (int i = 0; i < 100; i++)
             {
-                ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(data);
+                ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(data);
                 List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
                 var combineBytes =ToBytes(cipherMessage);
                 List<RecordLayer> sslMessages = new List<RecordLayer>();
@@ -467,7 +445,7 @@ namespace NetMQ.Security.Tests
                 int sum = 0;
                 foreach (var message in sslMessages)
                 {
-                    ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(message.RecordProtocols[0].HandShakeData));
+                    ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(message.RecordProtocols[0].HandShakeData));
                     Assert.AreEqual(data, (byte[])d);
                 }
             }
@@ -487,7 +465,7 @@ namespace NetMQ.Security.Tests
         [Test]
         public void ClientToServer()
         {
-            ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(Encoding.GetEncoding("GBK").GetBytes("HelloWorld"));
+            ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("HelloWorld"));
             List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
             var combineBytes = ToBytes(cipherMessage);
             List<RecordLayer> sslMessages = new List<RecordLayer>();
@@ -501,7 +479,7 @@ namespace NetMQ.Security.Tests
             Assert.AreEqual(buffer1.Length, 0);
             Assert.AreEqual(sslMessages.Count, 1);
 
-            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(sslMessages[0].RecordProtocols[0].HandShakeData));
+            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(sslMessages[0].RecordProtocols[0].HandShakeData));
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "HelloWorld");
         }
 
@@ -509,7 +487,7 @@ namespace NetMQ.Security.Tests
         public void TwoWayMessaging()
         {
             // server to client
-            ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(Encoding.GetEncoding("GBK").GetBytes("Hello"));
+            ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Hello"));
             List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
             List<RecordLayer> sslMessages = new List<RecordLayer>();
 
@@ -519,11 +497,11 @@ namespace NetMQ.Security.Tests
 
             Assert.AreEqual(sslMessages.Count, 1);
 
-            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(sslMessages[0].RecordProtocols[0].HandShakeData));
+            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(sslMessages[0].RecordProtocols[0].HandShakeData));
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Hello");
 
             // client to server
-            buffer = new ReadonlyByteBuffer(Encoding.GetEncoding("GBK").GetBytes("Reply"));
+            buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Reply"));
             cipherMessage = m_clientSecureChannel.EncryptApplicationBytes(buffer);
             buffer1 = new ReadonlyBuffer<byte>(cipherMessage[0]);
             sslMessages.Clear();
@@ -531,14 +509,14 @@ namespace NetMQ.Security.Tests
 
             Assert.AreEqual(sslMessages.Count, 1);
 
-            d = m_serverSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(sslMessages[0].RecordProtocols[0].HandShakeData));
+            d = m_serverSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(sslMessages[0].RecordProtocols[0].HandShakeData));
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Reply");
         }
 
         [Test]
         public void EmptyMessge()
         {
-            ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(EmptyArray<byte>.Instance);
+            ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(EmptyArray<byte>.Instance);
 
             List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
 
@@ -549,7 +527,7 @@ namespace NetMQ.Security.Tests
             bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
 
             Assert.AreEqual(sslMessages.Count, 1);
-            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(sslMessages[0].RecordProtocols[0].HandShakeData));
+            ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(sslMessages[0].RecordProtocols[0].HandShakeData));
 
             Assert.AreEqual(d.Length, 0);
         }
@@ -603,7 +581,7 @@ namespace NetMQ.Security.Tests
         [TestCase(1048576)]
         public void BigBytesData(int length)
         {
-            ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(new byte[length]);
+            ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(new byte[length]);
             new Random().NextBytes(buffer._Data);
 
             List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationBytes(buffer);
@@ -618,7 +596,7 @@ namespace NetMQ.Security.Tests
             int sum = 0;
             foreach (var message in sslMessages)
             {
-                ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(message.RecordProtocols[0].HandShakeData));
+                ReadonlyBuffer<byte> d = m_clientSecureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(message.RecordProtocols[0].HandShakeData));
                 sum += d.Length;
             }
             Assert.AreEqual(sum, buffer.Limit);

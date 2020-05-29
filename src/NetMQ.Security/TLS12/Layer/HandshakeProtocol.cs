@@ -28,7 +28,7 @@ namespace NetMQ.Security.TLS12.Layer
         {
             HandshakeMessage = handshakeMessage;
             HandshakeType = handshakeMessage.HandshakeType;
-            HandShakeData = new ReadonlyByteBuffer(this);
+            HandShakeData = new ReadonlyBuffer<byte>(this);
         }
         /// <summary>
         /// <![CDATA[

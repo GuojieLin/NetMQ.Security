@@ -426,7 +426,7 @@ namespace NetMQ.Security.TLS12
         /// <returns>a new NetMQMessage that is encrypted</returns>
         /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
-        public List<RecordLayer> EncryptApplicationBytes([NotNull] ReadonlyByteBuffer buffer)
+        public List<RecordLayer> EncryptApplicationBytes([NotNull] ReadonlyBuffer<byte> buffer)
         {
             if (!SecureChannelReady)
             {
@@ -491,7 +491,7 @@ namespace NetMQ.Security.TLS12
             return recordLayerBytes;
         }
 
-        public List<RecordLayer> EncryptFrame(ContentType contentType, [NotNull] ReadonlyByteBuffer buffer)
+        public List<RecordLayer> EncryptFrame(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
         {
             List<RecordLayer> recordLayers = new List<RecordLayer>();
             //计算需要拆分包的个数
@@ -636,7 +636,7 @@ namespace NetMQ.Security.TLS12
             }
             return Context.DecryptMessage(ContentType.ApplicationData, cipherBytes);
         }
-        public ReadonlyBuffer<byte> DecryptApplicationMessage([NotNull] ReadonlyByteBuffer cipherBytes)
+        public ReadonlyBuffer<byte> DecryptApplicationMessage([NotNull] ReadonlyBuffer<byte> cipherBytes)
         {
             if (!SecureChannelReady)
             {
