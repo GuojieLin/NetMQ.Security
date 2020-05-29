@@ -3,6 +3,7 @@ using NetMQ.Security.TLS12;
 using NetMQ.Security.TLS12.Layer;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -41,6 +42,10 @@ namespace NetMQ.Security.Decoder
                 recordLayer = null;
                 return false;
             }
+#if DEBUG
+            Debug.WriteLine("[Record Layer(" + buffer.Length + ")]");
+            Debug.WriteLine("[Record Layer Head(Size:" + BitConverter.ToString(buffer[0, 5]) + ")]");
+#endif
             recordLayer = new RecordLayer();
             recordLayer.ContentType = (ContentType)buffer[0];
             recordLayer.ProtocolVersion = (ProtocolVersion)buffer[1, 2];
@@ -132,6 +137,13 @@ namespace NetMQ.Security.Decoder
                 }
                 //数据加密，则直接返回加密数据 
                 int offset = protocol.LoadFromByteBuffer(buffer);
+#if DEBUG
+                Debug.WriteLine("[" + contentType + "(Size:" + offset + ")]");
+                if (protocol.HandShakeData != null)
+                {
+                    Debug.WriteLine("[EncryptData]" + BitConverter.ToString(protocol.HandShakeData) + ")]");
+                }
+#endif
                 recordProtocols.Add(protocol);
             }
             else
@@ -157,6 +169,13 @@ namespace NetMQ.Security.Decoder
                     }
                     //返回当前解析成功的Protocol的长度
                     offset = protocol.LoadFromByteBuffer(buffer);
+#if DEBUG
+                    Debug.WriteLine("[" + contentType + "(Size:" + offset + ")]");
+                    if (protocol.HandShakeData != null)
+                    {
+                        Debug.WriteLine("[HandShakeData]" + BitConverter.ToString(protocol.HandShakeData) + ")]");
+                    }
+#endif
                     //偏移长度，
                     buffer.Position(offset);
                     recordProtocols.Add(protocol);

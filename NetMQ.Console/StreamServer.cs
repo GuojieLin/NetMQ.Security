@@ -75,9 +75,7 @@ namespace NetMQ.Console
                         }
                         else
                         {
-                            byte[] temp = new byte[buffer.Length];
-                            Buffer.BlockCopy(cache, buffer.Offset, temp, 0, temp.Length);
-                            cache = temp;
+                            cache = buffer;
                         }
                     } while (!done);
                     SendMessages(socket, outgoingMessages);
@@ -113,6 +111,14 @@ namespace NetMQ.Console
                                     socket.SendFrame(recordLayer);
                                 }
                             }
+                        }
+                        if (buffer.Length == 0)
+                        {
+                            cache = null;
+                        }
+                        else
+                        {
+                            cache = buffer;
                         }
                     }
                     // encrypting the message and sending it over the socket

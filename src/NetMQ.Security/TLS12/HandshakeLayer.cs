@@ -374,6 +374,9 @@ namespace NetMQ.Security.TLS12
         /// <param name="message">the NetMQMessage whose frames are to be hashed</param>
         private void HashLocal(byte[] message)
         {
+#if DEBUG
+            Debug.WriteLine("[write] MD5 and SHA1 hashes:  " + BitConverter.ToString(message));
+#endif
             Hash(m_localHash, message);
         }
 
@@ -384,6 +387,9 @@ namespace NetMQ.Security.TLS12
         /// <param name="message">the NetMQMessage whose frames are to be hashed</param>
         private void HashRemote(byte[] message)
         {
+#if DEBUG
+            Debug.WriteLine("[read] MD5 and SHA1 hashes:  " + BitConverter.ToString(message));
+#endif
             Hash(m_remoteHash, message);
         }
         [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
@@ -510,6 +516,11 @@ namespace NetMQ.Security.TLS12
             //获取到客户端的sessionid
             this.SessionID = message.SessionID;
             SecurityParameters.ClientRandom = message.Random;
+
+#if DEBUG
+            Debug.WriteLine("Session ID:  " + BitConverter.ToString(message.Random));
+            Debug.WriteLine("RandomCookie:  " + BitConverter.ToString(this.SessionID));
+#endif
             AddServerHelloMessage(outRecordLayer, message.CipherSuites);
 
             AddCertificateMessage(outRecordLayer);
@@ -542,6 +553,9 @@ namespace NetMQ.Security.TLS12
                 //NetMQMessage alert = m_secureChannel.Alert(AlertLevel.Fatal, AlertDescription.ProtocolVersion);
                 //throw new AlertException(alert, null);
             }
+#if DEBUG
+            Debug.WriteLine("Choose Highest Client Suppose Version: " + BitConverter.ToString(maxSupposeVersionl));
+#endif
             //选择一个最高支持的版本
             m_secureChannel.SetProtocolVersion(maxSupposeVersionl);
         }
@@ -686,6 +700,11 @@ namespace NetMQ.Security.TLS12
             this.SessionID = message.SessionID;
             SecurityParameters.ServerRandom = message.Random;
 
+
+#if DEBUG
+            Debug.WriteLine("Session ID:  " + BitConverter.ToString(message.Random));
+            Debug.WriteLine("RandomCookie:  " + BitConverter.ToString(this.SessionID));
+#endif
             SetCipherSuite(message.CipherSuite);
         }
 
@@ -884,7 +903,6 @@ namespace NetMQ.Security.TLS12
 
             outRecordLayers.Add(InvokeChangeCipherSuite());
         }
-        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnFinished(FinishedMessage message)
         {
             m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
@@ -904,7 +922,7 @@ namespace NetMQ.Security.TLS12
 
 #if DEBUG
 
-            Debug.WriteLine("[verify_data]:" + BitConverter.ToString(verifyData));
+            Debug.WriteLine("["+ (SecurityParameters.Entity == ConnectionEnd.Client ? "server":"client")+" verify_data]:" + BitConverter.ToString(verifyData));
 #endif
             if (!verifyData.SequenceEqual(message.VerifyData))
             {
@@ -1131,12 +1149,6 @@ namespace NetMQ.Security.TLS12
         {
             var seed = new byte[RandomNumberLength*2];
 
-#if DEBUG
-
-            Debug.WriteLine("[preMasterSecret]:" + BitConverter.ToString(preMasterSecret));
-            Debug.WriteLine("[ClientRandom]:" + BitConverter.ToString(SecurityParameters.ClientRandom));
-            Debug.WriteLine("[ServerRandom]:" + BitConverter.ToString(SecurityParameters.ServerRandom));
-#endif
             Buffer.BlockCopy(SecurityParameters.ClientRandom, 0, seed, 0, RandomNumberLength);
             Buffer.BlockCopy(SecurityParameters.ServerRandom, 0, seed, RandomNumberLength, RandomNumberLength);
 
@@ -1145,6 +1157,9 @@ namespace NetMQ.Security.TLS12
 
 #if DEBUG
 
+            Debug.WriteLine("[preMasterSecret]:" + BitConverter.ToString(preMasterSecret));
+            Debug.WriteLine("[ClientRandom]:" + BitConverter.ToString(SecurityParameters.ClientRandom));
+            Debug.WriteLine("[ServerRandom]:" + BitConverter.ToString(SecurityParameters.ServerRandom));
             Debug.WriteLine("[MasterSecret]:" + BitConverter.ToString(SecurityParameters.MasterSecret));
 #endif
             Array.Clear(preMasterSecret, 0, preMasterSecret.Length);

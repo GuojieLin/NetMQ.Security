@@ -33,7 +33,7 @@ namespace NetMQ.Security.TLS12.Layer
             {
                 Level = (AlertLevel)data[0];
                 Description = (AlertDescription)data[1];
-                return 2;
+                return base.LoadFromByteBuffer(data);
             }
         }
         public static implicit operator byte[] (AlertProtocol message)
