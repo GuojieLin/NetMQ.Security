@@ -63,7 +63,7 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         {
             int sum = 0;
             List<byte[]> list = new List<byte[]>(10);
-            var encryptedPreMasterSecretLength = message.EncryptedPreMasterSecret.LengthToBytes(2);
+            var encryptedPreMasterSecretLength = message.EncryptedPreMasterSecret.LengthToBigEndianBytes(2);
             sum += Add(encryptedPreMasterSecretLength, list);
             sum += Add(message.EncryptedPreMasterSecret, list);
             return ByteArrayListToByteArray(list, sum);

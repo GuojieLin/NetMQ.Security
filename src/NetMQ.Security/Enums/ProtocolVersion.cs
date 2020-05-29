@@ -13,7 +13,7 @@ namespace NetMQ.Security
     /// </summary>
     public struct ProtocolVersion:IEquatable<ProtocolVersion>,IEqualityComparer<ProtocolVersion>
     {
-        public readonly static ProtocolVersion UN_SUPPOSE_VERSION = new ProtocolVersion() { Major = 0, Minor = 0 };
+        internal readonly static ProtocolVersion UN_SUPPOSE_VERSION = new ProtocolVersion() { Major = 0, Minor = 0 };
 
         /// <summary>
         /// TLS1.0/SSL3.0

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NetMQ.Security.Layer;
+using System;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 
@@ -46,13 +47,17 @@ namespace NetMQ.Security
         /// <param name="incomingMessage">The incoming message from the other peer</param>
         /// <param name="outgoingMesssages">Outgoing messages that need to be sent to the other peer</param>
         /// <returns>Return true when the method completes the handshake stage and the SecureChannel is ready to encrypt and decrypt messages</returns>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         bool ProcessMessage(NetMQMessage incomingMessage, IList<NetMQMessage> outgoingMesssages);
+
+        bool ProcessMessage(RecordLayer inRecordLayer, IList<RecordLayer> outRecordLayers);
 
         /// <summary>
         /// Encrypt application Message
         /// </summary>
         /// <param name="plainMessage">The plain message</param>
         /// <returns>The cipher message</returns>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         NetMQMessage EncryptApplicationMessage(NetMQMessage plainMessage);
 
         /// <summary>
@@ -60,6 +65,7 @@ namespace NetMQ.Security
         /// </summary>
         /// <param name="cipherMessage">The cipher message</param>
         /// <returns>The decrypted message</returns>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         NetMQMessage DecryptApplicationMessage(NetMQMessage cipherMessage);
 
         /// <summary>
@@ -68,6 +74,7 @@ namespace NetMQ.Security
         /// <param name="plainMessage">The plain message</param>
         /// <returns>The cipher message</returns>
         byte[] EncryptApplicationBytes(byte[] plainMessage);
+        byte[] EncryptApplicationBytes(ReadonlyBuffer<byte> plainMessage);
 
         /// <summary>
         /// Decrypt application message
@@ -75,5 +82,6 @@ namespace NetMQ.Security
         /// <param name="cipherMessage">The cipher message</param>
         /// <returns>The decrypted message</returns>
         byte[] DecryptApplicationBytes(byte[] cipherMessage);
+        byte[] DecryptApplicationBytes(ReadonlyBuffer<byte> cipherMessage);
     }
 }

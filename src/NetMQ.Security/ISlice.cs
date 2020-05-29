@@ -1,6 +1,6 @@
 ﻿namespace NetMQ.Security
 {
-    public interface ISlice<TEntity, TEntityItem> where TEntity : ReadonlyBuffer<TEntityItem>
+    internal interface ISlice<TEntity, TEntityItem> where TEntity : ReadonlyBuffer<TEntityItem>
     {
         /// <summary>
         /// 相对偏移量
@@ -16,7 +16,7 @@
         int Length { get; }
         BufferPool<TEntity, TEntityItem> Slice(int offset, int length);
     }
-    public interface ISlice<TEntity> 
+    internal interface ISlice<TEntity> 
     {
         /// <summary>
         /// 相对偏移量

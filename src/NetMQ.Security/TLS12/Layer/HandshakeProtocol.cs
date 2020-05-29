@@ -103,7 +103,7 @@ namespace NetMQ.Security.TLS12.Layer
             //HandshakeType(1)|Length(3)|HandshakeMessage
             byte[] temp = new byte[4 + data.Length];
             temp[0] = (byte)message.HandshakeMessage.HandshakeType;
-            byte[] lengthBytes = data.LengthToBytes(Constants.HAND_SHAKE_LENGTH);
+            byte[] lengthBytes = data.LengthToBigEndianBytes(Constants.HAND_SHAKE_LENGTH);
             Buffer.BlockCopy(lengthBytes, 0, temp, 1, lengthBytes.Length);
             Buffer.BlockCopy(data, 0, temp, 4, data.Length);
             return temp;

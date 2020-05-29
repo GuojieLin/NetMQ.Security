@@ -159,6 +159,7 @@ namespace NetMQ.Security.TLS12
         /// <returns>true if finished - ie, an incoming message of type Finished was received</returns>
         /// <exception cref="ArgumentNullException"><paramref name="incomingMessage"/> must not be <c>null</c>.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="incomingMessage"/> must have a valid <see cref="HandshakeType"/>.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public bool ProcessMessages(NetMQMessage incomingMessage, OutgoingMessageBag outgoingMessages)
         {
             if (incomingMessage == null)
@@ -249,7 +250,7 @@ namespace NetMQ.Security.TLS12
 
             return m_done;
         }
-        public bool ProcessMessages(HandshakeProtocol protocol , List<RecordLayer> outRecordLayers)
+        public bool ProcessMessages(HandshakeProtocol protocol , IList<RecordLayer> outRecordLayers)
         {
             if (protocol == null)
             {
@@ -338,6 +339,7 @@ namespace NetMQ.Security.TLS12
         /// Section 7.4, exchanged thus far.
         /// </summary>
         /// <param name="message">the NetMQMessage whose frames are to be hashed</param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void HashLocalAndRemote(NetMQMessage message)
         {
             foreach (var frame in message)
@@ -356,6 +358,7 @@ namespace NetMQ.Security.TLS12
         /// of the frames within the given NetMQMessage.
         /// </summary>
         /// <param name="message">the NetMQMessage whose frames are to be hashed</param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void HashLocal(NetMQMessage message)
         {
             foreach (var frame in message)
@@ -383,6 +386,7 @@ namespace NetMQ.Security.TLS12
         {
             Hash(m_remoteHash, message);
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void HashRemote(NetMQMessage message)
         {
             foreach (var frame in message)
@@ -403,6 +407,8 @@ namespace NetMQ.Security.TLS12
             // and copy the resulting hash value back into the same byte-array.
             hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
         }
+        /// <exception cref="NetMQSecurityException">The client hello message must not be received while expecting a different message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnHelloRequest(OutgoingMessageBag outgoingMessages)
         {
             //客户端根据配置决定握手层版本号
@@ -451,6 +457,7 @@ namespace NetMQ.Security.TLS12
         }
 
         /// <exception cref="NetMQSecurityException">The client hello message must not be received while expecting a different message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnClientHello(NetMQMessage incomingMessage, OutgoingMessageBag outgoingMessages)
         {
             if (m_lastReceivedMessage != HandshakeType.HelloRequest || m_lastSentMessage != HandshakeType.HelloRequest)
@@ -539,6 +546,7 @@ namespace NetMQ.Security.TLS12
             m_secureChannel.SetProtocolVersion(maxSupposeVersionl);
         }
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void AddServerHelloDone(OutgoingMessageBag outgoingMessages)
         {
             var serverHelloDoneMessage = new ServerHelloDoneMessage();
@@ -558,6 +566,7 @@ namespace NetMQ.Security.TLS12
             m_lastSentMessage = HandshakeType.ServerHelloDone;
         }
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void AddCertificateMessage(OutgoingMessageBag outgoingMessages)
         {
             var certificateMessage = new CertificateMessage ();
@@ -606,6 +615,7 @@ namespace NetMQ.Security.TLS12
             }
             return serverHelloMessage;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
         {
 
@@ -627,6 +637,7 @@ namespace NetMQ.Security.TLS12
             m_lastSentMessage = HandshakeType.ServerHello;
         }
         /// <exception cref="NetMQSecurityException">The server hello message must not be received while expecting a different message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnServerHello(NetMQMessage incomingMessage)
         {
             if (m_lastReceivedMessage != HandshakeType.HelloRequest || m_lastSentMessage != HandshakeType.ClientHello)
@@ -701,6 +712,7 @@ namespace NetMQ.Security.TLS12
 
         /// <exception cref="NetMQSecurityException">Must be able to verify the certificate.</exception>
         /// <exception cref="NetMQSecurityException">The certificate message must not be received while expecting a another message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnCertificate(NetMQMessage incomingMessage)
         {
             if (m_lastReceivedMessage != HandshakeType.ServerHello || m_lastSentMessage != HandshakeType.ClientHello)
@@ -731,6 +743,7 @@ namespace NetMQ.Security.TLS12
 
 
         /// <exception cref="NetMQSecurityException">The server hello message must not be received while expecting another message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnServerHelloDone(NetMQMessage incomingMessage,
             OutgoingMessageBag outgoingMessages)
         {
@@ -751,7 +764,7 @@ namespace NetMQ.Security.TLS12
 
             AddFinished(outgoingMessages);
         }
-        private void OnServerHelloDone(HandshakeProtocol protocol, List<RecordLayer> outgoingMessages)
+        private void OnServerHelloDone(HandshakeProtocol protocol, IList<RecordLayer> outgoingMessages)
         {
             ServerHelloDoneMessage message = protocol.HandshakeMessage as ServerHelloDoneMessage;
             Debug.Assert(message != null);
@@ -818,6 +831,7 @@ namespace NetMQ.Security.TLS12
             m_lastSentMessage = HandshakeType.ClientKeyExchange;
             return recordLayer;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
         {
             var clientKeyExchangeMessage = CreateClientKeyExchangeMessage();
@@ -837,6 +851,7 @@ namespace NetMQ.Security.TLS12
         }
 
         /// <exception cref="NetMQSecurityException">The client key exchange must not be received while expecting a another message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnClientKeyExchange(NetMQMessage incomingMessage, OutgoingMessageBag outgoingMessages)
         {
             if (m_lastReceivedMessage != HandshakeType.ClientHello || m_lastSentMessage != HandshakeType.ServerHelloDone)
@@ -854,7 +869,7 @@ namespace NetMQ.Security.TLS12
 
             InvokeChangeCipherSuite(outgoingMessages);
         }
-        private void OnClientKeyExchange(HandshakeProtocol protocol, List<RecordLayer>  outRecordLayers)
+        private void OnClientKeyExchange(HandshakeProtocol protocol, IList<RecordLayer>  outRecordLayers)
         {
             ClientKeyExchangeMessage message = protocol.HandshakeMessage as ClientKeyExchangeMessage;
             Debug.Assert(message != null);
@@ -869,6 +884,7 @@ namespace NetMQ.Security.TLS12
 
             outRecordLayers.Add(InvokeChangeCipherSuite());
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnFinished(FinishedMessage message)
         {
             m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
@@ -899,6 +915,7 @@ namespace NetMQ.Security.TLS12
 
         /// <exception cref="NetMQSecurityException">The Finished message must not be received while expecting a another message.</exception>
         /// <exception cref="NetMQSecurityException">The peer verification data must be valid.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void OnFinished(NetMQMessage incomingMessage, OutgoingMessageBag outgoingMessages)
         {
             if (
@@ -967,6 +984,7 @@ namespace NetMQ.Security.TLS12
             m_done = true;
             return outgoingMessages;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void AddFinished(OutgoingMessageBag outgoingMessages)
         {
             FinishedMessage finishedMessage = CreateFinishedMessage();
@@ -1098,6 +1116,7 @@ namespace NetMQ.Security.TLS12
             CipherSuiteChange?.Invoke(this, EventArgs.Empty);
             return recordLayer;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private void InvokeChangeCipherSuite(OutgoingMessageBag outgoingMessages)
         {
             // The change cipher spec protocol exists to signal transitions in ciphering strategies.

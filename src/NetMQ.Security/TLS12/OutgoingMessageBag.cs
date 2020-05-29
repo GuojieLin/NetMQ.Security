@@ -9,6 +9,7 @@ namespace NetMQ.Security.TLS12
     /// This class contains a list of NetMQMessages,
     /// and a SecureChannel to use when adding protocol messages to it.
     /// </summary>
+    [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
     internal class OutgoingMessageBag
     {
         private readonly SecureChannel m_secureChannel;

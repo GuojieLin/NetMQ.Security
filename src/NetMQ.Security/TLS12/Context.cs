@@ -17,9 +17,10 @@ namespace NetMQ.Security.TLS12
     internal class Context : IDisposable
     {
         private const string KeyExpansion = "key expansion";
+        /// <summary>
+        /// 用于生成随机IV
+        /// </summary>
         private RandomNumberGenerator m_rng = new RNGCryptoServiceProvider();
-
-        public const int WindowSize = 1024;
 
         private SymmetricAlgorithm m_decryptionBulkAlgorithm;
         private SymmetricAlgorithm m_encryptionBulkAlgorithm;
@@ -50,9 +51,6 @@ namespace NetMQ.Security.TLS12
         private object m_writeLock = new object();
 
         private byte[] ProtocolVersion;
-        private ulong m_leftWindow = 0;
-        private ulong m_rightWindow = WindowSize - 1;
-        private readonly bool[] m_windowMap = new bool[WindowSize];
         /// <summary>
         /// 配置
         /// </summary>
@@ -71,6 +69,9 @@ namespace NetMQ.Security.TLS12
             PRF = new SHA256PRF();
         }
 
+        /// <summary>
+        /// 当前会话的安全参数
+        /// </summary>
         public SecurityParameters SecurityParameters { get; set; }
 
         public IPRF PRF { get; set; }
@@ -349,6 +350,7 @@ namespace NetMQ.Security.TLS12
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: Cipher message must have at least 2 frames, iv and sequence number.</exception>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.ReplayAttack"/>: Message already handled or very old message, might be under replay attack.</exception>
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.EncryptedFramesMissing"/>: Frames were removed from the encrypted message.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public NetMQMessage DecryptMessage(ContentType contentType, NetMQMessage cipherMessage)
         {
             NetMQMessage message = new NetMQMessage();
@@ -386,42 +388,13 @@ namespace NetMQ.Security.TLS12
 
                 DecryptBytes(decryptor, cipherBytes, out data, out mac, out padding);
                 ValidateBytes(contentType, seqNum, data, mac, padding);
-                return data;
+                return new ReadonlyBuffer<byte>(data);
             }
         }
 
-        public ReadonlyBuffer<byte> DecryptMessage(ContentType contentType, ReadonlyBuffer<byte> cipherMessage)
+        public byte[] DecryptMessage(ContentType contentType, ReadonlyBuffer<byte> cipherMessage)
         {
-            if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.Null &&
-              SecurityParameters.MACAlgorithm == MACAlgorithm.Null)
-            {
-                return cipherMessage;
-            }
-            //从第一个加密块开始计算
-            ulong seqNum = GetAndIncreaseReadSequneceNumber();
-            if (cipherMessage.Length < SecurityParameters.RecordIVLength)
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFrameInvalidLength, "IV size not enough");
-            }
-            byte[] ivBytes = new byte[SecurityParameters.RecordIVLength];
-            Buffer.BlockCopy(cipherMessage, 0, ivBytes, 0, ivBytes.Length);
-            byte[] cipherBytes = new byte[cipherMessage.Length - SecurityParameters.RecordIVLength];
-            Buffer.BlockCopy(cipherMessage, ivBytes.Length, cipherBytes, 0, cipherBytes.Length);
-
-
-#if DEBUG
-            Debug.WriteLine("[iv]:" + BitConverter.ToString(ivBytes));
-#endif
-            using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor(m_decryptionBulkAlgorithm.Key, ivBytes))
-            {
-                byte[] padding;
-                byte[] data;
-                byte[] mac;
-
-                DecryptBytes(decryptor, cipherBytes, out data, out mac, out padding);
-                ValidateBytes(contentType, seqNum, data, mac, padding);
-                return new ReadonlyBuffer<byte>(data);
-            }
+            return DecryptMessage(contentType, (byte[])cipherMessage);
         }
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.EncryptedFrameInvalidLength"/>: The block size must be valid.</exception>
         private void DecryptBytes(ICryptoTransform decryptor, byte[] cipherBytes,
@@ -539,52 +512,7 @@ namespace NetMQ.Security.TLS12
                 }
             }
         }
-
-        private bool CheckReplayAttack(ulong seqNumber)
-        {
-            if (seqNumber < m_leftWindow)
-            {
-                return true;
-            }
-            else if (seqNumber <= m_rightWindow)
-            {
-                int index = (int)(seqNumber % WindowSize);
-
-                if (!m_windowMap[index])
-                {
-                    m_windowMap[index] = true;
-                    return false;
-                }
-                else
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                // if new seq is much higher than the window size somebody is trying to do a reply attack as well
-                if (seqNumber - m_rightWindow > WindowSize - 1)
-                {
-                    return true;
-                }
-
-                // need to extend window size
-                ulong bytesToExtend = seqNumber - m_rightWindow;
-
-                // set to false the new extension
-                for (ulong i = 0; i < bytesToExtend; i++)
-                {
-                    int index = (int)((m_leftWindow + i) % WindowSize);
-
-                    m_windowMap[index] = false;
-                }
-
-                m_leftWindow = m_leftWindow + bytesToExtend;
-                m_rightWindow = seqNumber;
-
-                return false;
-            }
-        }
+        
         internal void SetProtocolVersion(byte[] protocolVersion)
         {
             ProtocolVersion = protocolVersion;

@@ -65,7 +65,7 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
             var certLengthBytes = (certBytes.Length + 3).ToBigEndianBytes(3);
             sum += Add(certLengthBytes, list);
             //Certificate Length:
-            var certsLengthBytes = certBytes.LengthToBytes(3);
+            var certsLengthBytes = certBytes.LengthToBigEndianBytes(3);
             sum += Add(certsLengthBytes, list);
             //Certificate:
             sum += Add(certBytes, list);

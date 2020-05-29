@@ -8,7 +8,7 @@ using System.Text;
 
 namespace NetMQ.Security.Decoder
 {
-    public class DecoderFactory
+    internal class DecoderFactory
     {
         /// <summary>
         /// 解析报文
@@ -18,7 +18,7 @@ namespace NetMQ.Security.Decoder
         /// <param name="offset">解析数据的偏移量</param>
         /// <param name="recordLayers">解析出的RecordLayer</param>
         /// <returns>解析数据成功返回true，数据长度不够解析失败，返回false</returns>
-        public static bool Decode(ReadonlyBuffer<byte> buffer, bool changeCipherSpec, out int offset, out RecordLayer recordLayer)
+        internal static bool Decode(ReadonlyBuffer<byte> buffer, bool changeCipherSpec, out int offset, out RecordLayer recordLayer)
         {
             //ContentType (1,handshake:22)
             //ProtocolVersion(2)

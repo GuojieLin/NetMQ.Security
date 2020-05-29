@@ -11,12 +11,19 @@ namespace NetMQ.Security.Extensions
 {
     public static class ByteArrayExtensions
     {
-        public static byte[] LengthToBytes(this byte[] bytes, int length)
+        public static byte[] LengthToBigEndianBytes(this byte[] bytes, int length)
         {
             if (length > 4) throw new ArgumentException("max length 4 byte");
             byte[] temp = BitConverter.GetBytes(bytes.Length);
             //由于BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian
             return temp.Take(length).Reverse().ToArray();
+        }
+        public static byte[] LengthToLittleEndianBytes(this byte[] bytes, int length)
+        {
+            if (length > 4) throw new ArgumentException("max length 4 byte");
+            byte[] temp = BitConverter.GetBytes(bytes.Length);
+            //由于BitConverter.GetBytes是Little-Endian,因此需要转换为Big-Endian
+            return temp.Take(length).ToArray();
         }
 
         public static byte[] Combine(this byte[] bytes1, byte[] bytes2)
@@ -32,6 +39,7 @@ namespace NetMQ.Security.Extensions
         /// </summary>
         /// <param name="bytes"></param>
         /// <returns></returns>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public static bool GetRecordLayerNetMQMessage(this byte[] bytes, ref bool changeCipherSpec, ref int offset, out List<NetMQMessage> sslMessages)
         {
             //用一个临时遍历保存偏移量，只有这个当前解析成功才偏移。
@@ -95,6 +103,7 @@ namespace NetMQ.Security.Extensions
         }
 
         #region private method
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static List<NetMQMessage> GetRecordLayers(ContentType contentType, byte[] handShakeLayerBytes, int start,int end, ref bool changeCipherSpec)
         {
             List<NetMQMessage> sslMessages = new List<NetMQMessage>();
@@ -127,12 +136,14 @@ namespace NetMQ.Security.Extensions
         }
 
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static NetMQMessage GetChangeCipherSpecLayer(byte[] bytes, ref int offset)
         {
             NetMQMessage sslMessage = new NetMQMessage();
             sslMessage.Append(bytes[offset++]);
             return sslMessage;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static NetMQMessage GetAlertLayer(byte[] bytes, ref int offset)
         {
             NetMQMessage sslMessage = new NetMQMessage();
@@ -141,6 +152,7 @@ namespace NetMQ.Security.Extensions
             offset += 2;
             return sslMessage;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static NetMQMessage GetApplicationDataLayer(byte[] bytes, int end, ref int offset)
         {
             if (end > bytes.Length) end = bytes.Length;
@@ -154,6 +166,7 @@ namespace NetMQ.Security.Extensions
         }
 
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static NetMQMessage GetHandShakeLayer(byte[] bytes, ref int offset ,int end, bool changeCipherSpec)
         {
             NetMQMessage sslMessage = new NetMQMessage();
@@ -195,15 +208,7 @@ namespace NetMQ.Security.Extensions
             return sslMessage;
         }
 
-        private static int GetLength(byte[] lengthBytes)
-        {
-            byte[] tempLength = new byte[2];
-            tempLength[0] = lengthBytes[1];
-            tempLength[1] = lengthBytes[0];
-            int length = BitConverter.ToUInt16(tempLength, 0);
-            return length;
-        }
-
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static HandshakeType GetHandshakeType(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             HandshakeType handshakeType = (HandshakeType)bytes[offset];
@@ -211,6 +216,7 @@ namespace NetMQ.Security.Extensions
             offset += Constants.HAND_SHAKE_TYPE;
             return handshakeType;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static int GetHandShakeContentLength(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_LENGTH];
@@ -221,6 +227,7 @@ namespace NetMQ.Security.Extensions
             int length = BitConverter.ToInt32(new[] { handShakeContentLengthBytes[2], handShakeContentLengthBytes[1], handShakeContentLengthBytes[0], (byte)0 }, 0);
             return length;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetProtocolVersion(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] protocolVersionBytes = new byte[Constants.PROTOCOL_VERSION_LENGTH];
@@ -229,6 +236,7 @@ namespace NetMQ.Security.Extensions
             sslMessage.Append(protocolVersionBytes);
             offset += Constants.PROTOCOL_VERSION_LENGTH;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetRandom(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] randomBytes = new byte[Constants.RANDOM_LENGTH];
@@ -243,6 +251,7 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetClientHelloLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
@@ -289,6 +298,7 @@ namespace NetMQ.Security.Extensions
             offset += extensioLength;
         }
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetSessionId(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] sessionIdLengthBytes = new byte[Constants.SESSION_ID_LENGTH];
@@ -309,6 +319,7 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static int GetServerHelloLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
@@ -339,6 +350,7 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetCertificateLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
@@ -372,6 +384,7 @@ namespace NetMQ.Security.Extensions
             //length包含了Constants.CERTIFICATE_LENGTH，前面为了取证书偏移了一次。
             offset += length;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetServerHelloDoneLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_LENGTH];
@@ -394,6 +407,7 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetClientKeyExchangeLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             int length = GetHandShakeContentLength(bytes, ref offset, sslMessage);
@@ -420,6 +434,7 @@ namespace NetMQ.Security.Extensions
         /// <param name="handshakeType"></param>
         /// <param name="bytes"></param>
         /// <param name="sslMessage"></param>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         private static void GetFinishLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
             byte[] verifyDataBytes = new byte[bytes.Length - offset];

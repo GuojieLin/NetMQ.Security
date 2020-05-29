@@ -160,7 +160,7 @@ namespace NetMQ.Console
                         string str = "10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>2020051514384165</TransSeqID><VerifyCode>MbzZvbTp9Cnw9iqvRjJ3in6wNry59ZB1ubSCpWxeRiov9eU0c8MCGTE+u+7ED7NlU4EA8mf+OATBvS6OlgYzggKmsEt6CoPhQB3V/xzMZzlLGwym7r1arrNYIUjW6oJKXWNe84SYTe8Mqfw1+gmzEcj72QpadujHdDTJ9WNEsmg=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11111</FGCommandCode><EnterpriseNum>AS330106</EnterpriseNum><TransKeyEncryptFlag>0</TransKeyEncryptFlag><FGVerifyCode>nQuCJ41Gp1wuankSkCvscwFVISkdI0XoGUJwKTB9IS7dbg+OgxpHe/zdSQkIZQjZbS5rzkFlmx31mrR8cmZa/jXJ+r4xeBfncS6qKJdYEH4jJra4/JyFkcb2mE8yolxN3v1C/M/Kq2+d532oXuQfiBqkEAv3gSb30zjurtVs3+I=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>2</MoneyWay><TransDate>20200515</TransDate><Trans><TransNo>testClwTLS20200515003</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>19030101040014391</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>12312312</CustAccNum><CustAccName>陈大帅逼</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate>0</IsPrivate><IsUrgent></IsUrgent><Amount>232.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose></Purpose><Memo></Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>testClwTLS20200515003</SourceTransNo></Trans></RealTimeSingleTransReq></Root>";
                         byte[] data = Encoding.GetEncoding("GBK").GetBytes(str);
                         string length = data.Length.ToString().PadLeft(8, ' ');
-                        var recordLayers = secureChannel.EncryptApplicationBytes(new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes(length + str)));
+                        var recordLayers = secureChannel.EncryptApplicationData(new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes(length + str)));
 
                         foreach (var recordLayer in recordLayers)
                         {
@@ -175,7 +175,7 @@ namespace NetMQ.Console
                             foreach (var message in sslMessages2)
                             {
                                 // decrypting the message
-                                ReadonlyBuffer<byte> plainMessage = secureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(message.RecordProtocols[0].HandShakeData));
+                                byte[] plainMessage = secureChannel.DecryptApplicationMessage(message.RecordProtocols[0].HandShakeData);
                                 System.Console.WriteLine(Encoding.GetEncoding("GBK").GetString(plainMessage));
                             }
                         }

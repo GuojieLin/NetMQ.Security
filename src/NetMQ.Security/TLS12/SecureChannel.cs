@@ -139,7 +139,9 @@ namespace NetMQ.Security.TLS12
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.InvalidProtocolVersion: Wrong protocol version.</exception>
         /// <remarks>
         /// Note: Within this library, this method is ONLY called from within the unit-tests.
-        /// </remarks>
+        /// </remarks>        
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
+
         public bool ProcessMessage(NetMQMessage incomingMessage, IList<NetMQMessage> outgoingMesssages)
         {
 #if DEBUG
@@ -256,12 +258,13 @@ namespace NetMQ.Security.TLS12
             return (SecureChannelReady = result && ChangeSuiteChangeArrived);
         }
         /// <summary>
-        /// 
+        /// 将解析完成的RecordLayer进行处理，需要注意，这里只处理握手请求。
+        /// 握手完毕后数据加密和解密不应该在调用该方法。
         /// </summary>
         /// <param name="incomingMessage"></param>
         /// <param name="outgoingMesssages"></param>
         /// <returns></returns>
-        public bool ProcessMessage(RecordLayer incomingMessage, List<RecordLayer> outgoingMesssages)
+        public bool ProcessMessage(RecordLayer incomingMessage, IList<RecordLayer> outgoingMesssages)
         {
             ContentType contentType = ContentType.Handshake;
             bool result = false;
@@ -287,7 +290,7 @@ namespace NetMQ.Security.TLS12
                     //Finished报文是第一个解密报文。需要解密。
                     var decryptedDate = Context.DecryptMessage(contentType, incomingMessage.RecordProtocols[0].HandShakeData);
                     //解析解密后的数据
-                    var decryptProtocol = DecoderFactory.Decode(contentType, decryptedDate, false/*数据已解密*/);
+                    var decryptProtocol = DecoderFactory.Decode(contentType, (ReadonlyBuffer<byte>)decryptedDate, false/*数据已解密*/);
                     //替换为解密后的协议
                     incomingMessage.RecordProtocols = decryptProtocol;
                     //替换加密协议
@@ -345,6 +348,8 @@ namespace NetMQ.Security.TLS12
             }
 
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
+
         private void RemoveLength(NetMQMessage incomingMessage)
         {
             //去除长度
@@ -352,6 +357,11 @@ namespace NetMQ.Security.TLS12
 
         }
 
+        /// <summary>
+        /// 当接收到CipherSuiteChange时，更新安全参数
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnCipherSuiteChangeFromHandshakeLayer(object sender, EventArgs e)
         {
 
@@ -385,6 +395,7 @@ namespace NetMQ.Security.TLS12
         /// <returns>a new NetMQMessage that is encrypted</returns>
         /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public NetMQMessage EncryptApplicationMessage([NotNull] NetMQMessage plainMessage)
         {
             if (!SecureChannelReady)
@@ -426,7 +437,7 @@ namespace NetMQ.Security.TLS12
         /// <returns>a new NetMQMessage that is encrypted</returns>
         /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
-        public List<RecordLayer> EncryptApplicationBytes([NotNull] ReadonlyBuffer<byte> buffer)
+        public List<RecordLayer> EncryptApplicationData([NotNull] ReadonlyBuffer<byte> buffer)
         {
             if (!SecureChannelReady)
             {
@@ -438,7 +449,7 @@ namespace NetMQ.Security.TLS12
                 throw new ArgumentNullException(nameof(buffer));
             }
 
-            return EncryptFrame(ContentType.ApplicationData, buffer);
+            return InternalEncryptAndWrapMessage(ContentType.ApplicationData, buffer);
         }
         /// <summary>
         /// 包装成RecordLayer
@@ -461,7 +472,7 @@ namespace NetMQ.Security.TLS12
             /// opaque fragment[TLSPlaintext.length];
             /// 
             //增加长度
-            byte[] lengthBytes = encryptedBytes.LengthToBytes(2);
+            byte[] lengthBytes = encryptedBytes.LengthToBigEndianBytes(2);
             Buffer.BlockCopy(lengthBytes, 0, recordLayerBytes, 3, lengthBytes.Length);
 
             Buffer.BlockCopy(encryptedBytes, 0, recordLayerBytes, 5, encryptedBytes.Length);
@@ -483,7 +494,7 @@ namespace NetMQ.Security.TLS12
             /// opaque fragment[TLSPlaintext.length];
             /// 
             //增加长度
-            byte[] lengthBytes = encryptedBytes.LengthToBytes(2);
+            byte[] lengthBytes = encryptedBytes.LengthToBigEndianBytes(2);
             Buffer.BlockCopy(lengthBytes, 0, recordLayerBytes, 3, lengthBytes.Length);
 
             Buffer.BlockCopy(encryptedBytes, 0, recordLayerBytes, 5, encryptedBytes.Length);
@@ -491,7 +502,7 @@ namespace NetMQ.Security.TLS12
             return recordLayerBytes;
         }
 
-        public List<RecordLayer> EncryptFrame(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
+        public List<RecordLayer> InternalEncryptAndWrapMessage(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
         {
             List<RecordLayer> recordLayers = new List<RecordLayer>();
             //计算需要拆分包的个数
@@ -525,6 +536,8 @@ namespace NetMQ.Security.TLS12
             } while (buffer.Length > 0);
             return recordLayers;
         }
+
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public byte[] EncryptFrame(ContentType contentType, [NotNull] byte[] plainBytes)
         {
             //计算需要拆分包的个数
@@ -578,6 +591,7 @@ namespace NetMQ.Security.TLS12
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.InvalidFramesCount: The cipher message must have at least 2 frames.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.InvalidProtocolVersion: The protocol must be the correct version.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.InvalidContentType: The message must contain application data.</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public NetMQMessage DecryptApplicationMessage([NotNull] NetMQMessage cipherMessage)
         {
             if (!SecureChannelReady)
@@ -636,18 +650,14 @@ namespace NetMQ.Security.TLS12
             }
             return Context.DecryptMessage(ContentType.ApplicationData, cipherBytes);
         }
-        public ReadonlyBuffer<byte> DecryptApplicationMessage([NotNull] ReadonlyBuffer<byte> cipherBytes)
+        /// <summary>
+        /// 解密数据
+        /// </summary>
+        /// <param name="cipherBytes"></param>
+        /// <returns></returns>
+        public byte[] DecryptApplicationMessage([NotNull] ReadonlyBuffer<byte> cipherBytes)
         {
-            if (!SecureChannelReady)
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.SecureChannelNotReady, "Cannot decrypt messages until the secure channel is ready");
-            }
-
-            if (cipherBytes == null)
-            {
-                throw new ArgumentNullException(nameof(cipherBytes));
-            }
-            return Context.DecryptMessage(ContentType.ApplicationData, cipherBytes);
+            return DecryptApplicationMessage((byte[])cipherBytes);
         }
         public void UpdateSessionId(byte[] sessionId)
         {
@@ -655,6 +665,7 @@ namespace NetMQ.Security.TLS12
             m_handshakeLayer.UpdateSessionId(sessionId);
         }
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public NetMQMessage HandshakeFailure(AlertLevel alertLevel, byte[] protocolVersion = null)
         {
             if (protocolVersion == null) protocolVersion = new byte[2] { 3, 3 };
@@ -666,6 +677,7 @@ namespace NetMQ.Security.TLS12
             message.Append(new byte[1] { (byte)AlertDescription.HandshakeFailure });
             return message;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public NetMQMessage Alert(AlertLevel alertLevel, AlertDescription alertDescription)
         {
             NetMQMessage message = new NetMQMessage();
@@ -677,6 +689,15 @@ namespace NetMQ.Security.TLS12
             message.Append(new byte[1] { (byte)alertLevel });
             message.Append(new byte[1] { (byte)alertDescription });
             return message;
+        }
+        public RecordLayer CreateAlert(AlertLevel alertLevel, AlertDescription alertDescription)
+        {
+            AlertProtocol alertProtocol = new AlertProtocol();
+            alertProtocol.Level = alertLevel;
+            alertProtocol.Description = alertDescription;
+            RecordLayer recordLayer = new RecordLayer();
+            recordLayer.AddAlertProtocol(alertProtocol);
+            return recordLayer;
         }
         /// <summary>
         /// Release any contained resources of this SecureChannel object.
@@ -721,6 +742,7 @@ namespace NetMQ.Security.TLS12
         }
 
         #region 解析RecordLayer
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public bool ResolveRecordLayer(byte[] bytes, out int offset, out List<NetMQMessage> sslMessages)
         {
             sslMessages = new List<NetMQMessage>();
@@ -742,9 +764,11 @@ namespace NetMQ.Security.TLS12
         }
         /// <summary>
         /// 将数据解析成recordLayer
+        /// 当握手已完成，则接收到会解析Finished，Alert，ApplicationData加密数据，加密数据保存到RecordProtocol的HandshakeData中。
+        /// 当握手完成，会解析出一个或多个握手的RecordLayer。
         /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="offset"></param>
+        /// <param name="buffer">接收到的内容</param>
+        /// <param name="offset">解析出的RecordLayer数据</param>
         /// <param name="recordLayers"></param>
         /// <returns>握手是否完成</returns>
         public bool ResolveRecordLayer(ReadonlyBuffer<byte> buffer, List<RecordLayer> recordLayers)
@@ -792,6 +816,17 @@ namespace NetMQ.Security.TLS12
             } while (buffer.Length > 0 );
             return result;
 
+        }
+
+
+        public byte[] EncryptApplicationBytes(ReadonlyBuffer<byte> plainMessage)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] DecryptApplicationBytes(ReadonlyBuffer<byte> cipherMessage)
+        {
+            throw new NotImplementedException();
         }
 
 

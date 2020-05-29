@@ -102,10 +102,10 @@ namespace NetMQ.Console
                             foreach (var message in sslMessages2)
                             {
                                 // decrypting the message
-                                ReadonlyBuffer<byte> plainMessage = secureChannel.DecryptApplicationMessage(new ReadonlyBuffer<byte>(message.RecordProtocols[0].HandShakeData));
+                                byte[] plainMessage = secureChannel.DecryptApplicationMessage(message.RecordProtocols[0].HandShakeData);
                                 System.Console.WriteLine(Encoding.GetEncoding("GBK").GetString(plainMessage));
                                 ReadonlyBuffer<byte> sendBuffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("00000021<Root>TestResp</Root>"));
-                                var recordLayers = secureChannel.EncryptApplicationBytes(sendBuffer);
+                                var recordLayers = secureChannel.EncryptApplicationData(sendBuffer);
 
                                 foreach (var recordLayer in recordLayers)
                                 {

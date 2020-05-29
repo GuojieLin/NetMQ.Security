@@ -5,7 +5,7 @@ using System.Text;
 
 namespace NetMQ.Security
 {
-    public class BufferPool<TEntity, TEntityItem> : ISlice<TEntity, TEntityItem> where TEntity : ReadonlyBuffer<TEntityItem>
+    internal class BufferPool<TEntity, TEntityItem> : ISlice<TEntity, TEntityItem> where TEntity : ReadonlyBuffer<TEntityItem>
     {
         private const int DEFAULT_CAPACITY = 10;
         public int Offset { get; protected set; }
@@ -83,7 +83,7 @@ namespace NetMQ.Security
     }
 
 
-    public class ByteBufferPool: BufferPool<ReadonlyBuffer<byte>,byte>
+    internal class ByteBufferPool: BufferPool<ReadonlyBuffer<byte>,byte>
     {
         private const int DEFAULT_CAPACITY = 10;
 

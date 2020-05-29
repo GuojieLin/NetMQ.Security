@@ -21,7 +21,13 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         /// </summary>
         public abstract HandshakeType HandshakeType { get; }
 
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public virtual void SetFromNetMQMessage(NetMQMessage message)
+        {
+            throw new NotImplementedException();
+        }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
+        public virtual NetMQMessage ToNetMQMessage()
         {
             throw new NotImplementedException();
         }
@@ -29,10 +35,6 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         {
         }
 
-        public virtual NetMQMessage ToNetMQMessage()
-        {
-            throw new NotImplementedException();
-        }
         public virtual byte[] ToBytes()
         {
             return EmptyArray<byte>.Instance;
@@ -42,6 +44,7 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         /// Return a new NetMQMessage that holds a frame containing only one byte containing the HandshakeType.
         /// </summary>
         /// <returns>the HandshakeType wrapped in a new NetMQMessage</returns>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         protected NetMQMessage AddHandShakeType()
         {
             NetMQMessage message = new NetMQMessage();
@@ -49,6 +52,7 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
 
             return message;
         }
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public void InsertLength(NetMQMessage message)
         {
             byte[] lengthBytes= new byte[3];
@@ -60,6 +64,7 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         /// </summary>
         /// <returns>the resulting new NetMQMessage</returns>
         /// <exception cref="ArgumentException">handshake的数据大小不能超过65535,因为协议使用2个字节存储长度。</exception>
+        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
         public virtual void GetLength(byte[] lengthBytes ,NetMQMessage message)
         {
             message.GetLength(lengthBytes);
