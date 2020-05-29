@@ -1,5 +1,6 @@
 ﻿using NetMQ.Security.Enums;
 using System;
+using System.Collections.Generic;
 
 namespace NetMQ.Security.TLS12.HandshakeMessages
 {
@@ -25,6 +26,25 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         /// </summary>
         public byte[] VerifyData { get; set; }
 
+        /// <summary>
+        /// <![CDATA[
+        /// Handshake Protocol: Encrypted Handshake Message
+        /// ]]>
+        /// </summary>
+        /// <param name="buffer"></param>
+        public override void LoadFromByteBuffer(ReadonlyBuffer<byte> buffer)
+        {
+            VerifyData = buffer[0, VerifyDataLength];
+        }
+
+        public override byte[] ToBytes()
+        {
+            return this;
+        }
+        public static implicit operator byte[] (FinishedMessage message)
+        {
+            return message.VerifyData;
+        }
         /// <summary>
         /// Remove the two frames from the given NetMQMessage, interpreting them thusly:
         /// 1. a byte with the HandshakeType,

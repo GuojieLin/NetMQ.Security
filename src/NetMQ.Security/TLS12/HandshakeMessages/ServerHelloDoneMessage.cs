@@ -13,6 +13,27 @@ namespace NetMQ.Security.TLS12.HandshakeMessages
         /// </summary>
         public override HandshakeType HandshakeType => HandshakeType.ServerHelloDone;
 
+
+        /// <summary>
+        /// <![CDATA[
+        /// Handshake Protocol: Server Hello Done
+        /// Handshake Type: Server Hello Done(14)
+        /// Length: 0
+        /// ]]>
+        /// </summary>
+        /// <param name="buffer"></param>
+        public override void LoadFromByteBuffer(ReadonlyBuffer<byte> buffer)
+        {
+        }
+
+        public override byte[] ToBytes()
+        {
+            return this;
+        }
+        public static implicit operator byte[] (ServerHelloDoneMessage message)
+        {
+            return EmptyArray<byte>.Instance;
+        }
         /// <summary>
         /// Remove the one frame from the given NetMQMessage, which shall contain one byte with the HandshakeType,
         /// presumed here to be ServerHelloDone.

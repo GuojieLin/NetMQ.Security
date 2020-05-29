@@ -55,11 +55,11 @@ namespace NetMQ.Security.Extensions
             //get protocol version
             Buffer.BlockCopy(bytes, tempOffset, protocolVersionBytes, 0, Constants.PROTOCOL_VERSION_LENGTH);
             tempOffset += Constants.PROTOCOL_VERSION_LENGTH;
-            byte[] handshakeLengthBytes = new byte[Constants.HAND_SHAKE_LENGTH];
+            byte[] handshakeLengthBytes = new byte[Constants.RECORD_LAYER_LENGTH];
             //get hand shake layer
             //0012->1200->2100
-            Buffer.BlockCopy(bytes, tempOffset, handshakeLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
-            tempOffset += Constants.HAND_SHAKE_LENGTH;
+            Buffer.BlockCopy(bytes, tempOffset, handshakeLengthBytes, 0, Constants.RECORD_LAYER_LENGTH);
+            tempOffset += Constants.RECORD_LAYER_LENGTH;
             //交换2个字节位置。
             byte[] temp = new byte[2];
             temp[1] = handshakeLengthBytes[0];
@@ -213,11 +213,11 @@ namespace NetMQ.Security.Extensions
         }
         private static int GetHandShakeContentLength(byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_CONTENT_LENGTH];
+            byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_LENGTH];
             //get hand shake content length
-            Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_CONTENT_LENGTH);
+            Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
             sslMessage.Append(handShakeContentLengthBytes);
-            offset += Constants.HAND_SHAKE_CONTENT_LENGTH;
+            offset += Constants.HAND_SHAKE_LENGTH;
             int length = BitConverter.ToInt32(new[] { handShakeContentLengthBytes[2], handShakeContentLengthBytes[1], handShakeContentLengthBytes[0], (byte)0 }, 0);
             return length;
         }
@@ -374,11 +374,11 @@ namespace NetMQ.Security.Extensions
         }
         private static void GetServerHelloDoneLayer(HandshakeType handshakeType, byte[] bytes, ref int offset, NetMQMessage sslMessage)
         {
-            byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_CONTENT_LENGTH];
+            byte[] handShakeContentLengthBytes= new byte[Constants.HAND_SHAKE_LENGTH];
             //get hand shake content length
-            Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_CONTENT_LENGTH);
+            Buffer.BlockCopy(bytes, offset, handShakeContentLengthBytes, 0, Constants.HAND_SHAKE_LENGTH);
             sslMessage.Append(handShakeContentLengthBytes);
-            offset += Constants.HAND_SHAKE_CONTENT_LENGTH;
+            offset += Constants.HAND_SHAKE_LENGTH;
         }
         /// <summary>
         /// ContentType (1,handshake:22)

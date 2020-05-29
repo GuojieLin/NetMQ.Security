@@ -13,6 +13,8 @@ namespace NetMQ.Security
     /// </summary>
     public struct ProtocolVersion:IEquatable<ProtocolVersion>,IEqualityComparer<ProtocolVersion>
     {
+        public readonly static ProtocolVersion UN_SUPPOSE_VERSION = new ProtocolVersion() { Major = 0, Minor = 0 };
+
         /// <summary>
         /// TLS1.0/SSL3.0
         /// </summary>
@@ -42,6 +44,40 @@ namespace NetMQ.Security
             protocolVersion.Minor = versionBuffer[1];
             return protocolVersion;
         }
+
+
+        /// </summary>
+        public static bool operator ==(ProtocolVersion left, ProtocolVersion right)
+        {
+            return left.Equals(right);
+        }
+        public static bool operator !=(ProtocolVersion left, ProtocolVersion right)
+        {
+            return !left.Equals(right);
+        }
+        public static bool operator >(ProtocolVersion left, ProtocolVersion right)
+        {
+            if (left == right) return false;
+            if (left.Major > right.Major) return true;
+            if(left.Major == right.Major)
+            {
+                if (left.Minor > right.Minor) return true;
+                return false;
+            }
+            return false;
+        }
+        public static bool operator <(ProtocolVersion left, ProtocolVersion right)
+        {
+            if (left == right) return false;
+            if (left.Major < right.Major) return true;
+            if (left.Major == right.Major)
+            {
+                if (left.Minor < right.Minor) return true;
+                return false;
+            }
+            return false;
+        }
+
 
         public bool Equals(ProtocolVersion other)
         {

@@ -1,5 +1,6 @@
 ﻿using NetMQ.Security;
 using NetMQ.Security.Extensions;
+using NetMQ.Security.Layer;
 using NetMQ.Security.TLS12;
 using NetMQ.Sockets;
 using System;
@@ -102,6 +103,87 @@ namespace NetMQ.Console
 
         }
 
+        public void Do2()
+        {
+            // we are using dealer here, but we can use router as well, we just have to manager
+            // SecureChannel for each identity
+            using (var socket = new StreamSocket())
+            {
+                socket.Connect("tcp://127.0.0.1:9696");
+
+                using (SecureChannel secureChannel = SecureChannel.CreateClientSecureChannel(null, m_configuration))
+                {
+                    secureChannel.AllowedCipherSuites = new[] { CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA };
+                    // we need to set X509Certificate with a private key for the server
+                    X509Certificate2 certificate = new X509Certificate2(
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server.pfx"), "1234");
+                    secureChannel.Certificate = certificate;
+                    List<RecordLayer> outgoingMessages = new List<RecordLayer>();
+                    bool clientComplete = secureChannel.ProcessMessage(null, outgoingMessages);
+
+                    SendMessages(socket, outgoingMessages);
+                    bool done = false;
+                    // waiting for message from client
+                    byte[] cache = null;
+                    do
+                    {
+                        outgoingMessages.Clear();
+                        NetMQMessage incomingMessage = socket.ReceiveMultipartMessage();
+                        if (cache == null || cache.Length <= 0)
+                        {
+                            cache = incomingMessage.Last.Buffer;
+                        }
+                        else
+                        {
+                            cache = CombineV2(cache, incomingMessage.Last.Buffer);
+                        }
+                        ReadonlyByteBuffer buffer = new ReadonlyByteBuffer(cache);
+                        //SplitInMessage
+                        done = secureChannel.ResolveRecordLayer(buffer, outgoingMessages);
+                        SendMessages(socket, outgoingMessages);
+                        if (buffer.Length == 0)
+                        {
+                            cache = null;
+                        }
+                        else
+                        {
+                            byte[] temp = new byte[buffer.Length];
+                            Buffer.BlockCopy(cache, buffer.Offset, temp, 0, temp.Length);
+                            cache = temp;
+                        }
+                    } while (!done);
+                    SendMessages(socket, outgoingMessages);
+                    for (int i = 0; i < 10; i++)
+                    {
+                        outgoingMessages.Clear();
+
+                        string str = "10009<Root><Head><CommandCode>10009</CommandCode><TransSeqID>2020051514384165</TransSeqID><VerifyCode>MbzZvbTp9Cnw9iqvRjJ3in6wNry59ZB1ubSCpWxeRiov9eU0c8MCGTE+u+7ED7NlU4EA8mf+OATBvS6OlgYzggKmsEt6CoPhQB3V/xzMZzlLGwym7r1arrNYIUjW6oJKXWNe84SYTe8Mqfw1+gmzEcj72QpadujHdDTJ9WNEsmg=</VerifyCode><ZipType></ZipType><CorpBankCode>103</CorpBankCode><FGCommandCode>11111</FGCommandCode><EnterpriseNum>AS330106</EnterpriseNum><TransKeyEncryptFlag>0</TransKeyEncryptFlag><FGVerifyCode>nQuCJ41Gp1wuankSkCvscwFVISkdI0XoGUJwKTB9IS7dbg+OgxpHe/zdSQkIZQjZbS5rzkFlmx31mrR8cmZa/jXJ+r4xeBfncS6qKJdYEH4jJra4/JyFkcb2mE8yolxN3v1C/M/Kq2+d532oXuQfiBqkEAv3gSb30zjurtVs3+I=</FGVerifyCode></Head><RealTimeSingleTransReq><MoneyWay>2</MoneyWay><TransDate>20200515</TransDate><Trans><TransNo>testClwTLS20200515003</TransNo><ProtocolCode></ProtocolCode><EnterpriseAccNum>19030101040014391</EnterpriseAccNum><CustBankCode>103</CustBankCode><CustAccNum>12312312</CustAccNum><CustAccName>陈大帅逼</CustAccName><AreaCode></AreaCode><BankLocationCode></BankLocationCode><BankLocationName></BankLocationName><CardType></CardType><IsPrivate>0</IsPrivate><IsUrgent></IsUrgent><Amount>232.00</Amount><Currency>CNY</Currency><CertType>0</CertType><CertNum></CertNum><Mobile></Mobile><Purpose></Purpose><Memo></Memo><PolicyNumber></PolicyNumber><Extent1></Extent1><Extent2></Extent2><SourceTransNo>testClwTLS20200515003</SourceTransNo></Trans></RealTimeSingleTransReq></Root>";
+                        byte[] data = Encoding.GetEncoding("GBK").GetBytes(str);
+                        string length = data.Length.ToString().PadLeft(8, ' ');
+                        var recordLayers = secureChannel.EncryptApplicationBytes(new ReadonlyByteBuffer(Encoding.GetEncoding("GBK").GetBytes(length + str)));
+
+                        foreach (var recordLayer in recordLayers)
+                        {
+                            socket.SendMoreFrame(socket.Options.Identity);
+                            socket.SendFrame(recordLayer);
+                        }
+                        // this message is now encrypted
+                        NetMQMessage cipherMessage = socket.ReceiveMultipartMessage();
+                        List<RecordLayer> sslMessages2 = new List<RecordLayer>();
+                        if (secureChannel.ResolveRecordLayer(new ReadonlyByteBuffer(cipherMessage.Last.Buffer), sslMessages2))
+                        {
+                            foreach (var message in sslMessages2)
+                            {
+                                // decrypting the message
+                                ReadonlyBuffer<byte> plainMessage = secureChannel.DecryptApplicationMessage(new ReadonlyByteBuffer(message.RecordProtocols[0].HandShakeData));
+                                System.Console.WriteLine(Encoding.GetEncoding("GBK").GetString(plainMessage));
+                            }
+                        }
+                    }
+                    // encrypting the message and sending it over the socket
+                }
+            }
+        }
         public static void SendMessages(StreamSocket socket, List<NetMQMessage> outgoingMessages)
         {
             if (!outgoingMessages.Any()) return;
@@ -126,6 +208,21 @@ namespace NetMQ.Console
             outgoingMessages.Clear();
             message.Append(handsharkbytes);
             socket.SendMultipartMessage(message);
+        }
+        public static void SendMessages(StreamSocket socket, List<RecordLayer> outgoingMessages)
+        {
+            if (!outgoingMessages.Any()) return;
+            //需要将消息合并一次性发出
+            // the process message method fill the outgoing messages list with 
+            // messages to send over the socket
+            foreach (RecordLayer outgoingMessage in outgoingMessages)
+            {
+                NetMQMessage message = new NetMQMessage();
+                message.Append(socket.Options.Identity);
+                message.Append(outgoingMessage);
+                socket.SendMultipartMessage(message);
+            }
+            outgoingMessages.Clear();
         }
 
         internal static byte[] GetBytes(IList<NetMQMessage> respMessages)

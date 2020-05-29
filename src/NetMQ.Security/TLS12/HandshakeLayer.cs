@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
@@ -6,7 +7,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
+using NetMQ.Security.Layer;
 using NetMQ.Security.TLS12.HandshakeMessages;
+using NetMQ.Security.TLS12.Layer;
 
 namespace NetMQ.Security.TLS12
 {
@@ -49,12 +52,12 @@ namespace NetMQ.Security.TLS12
         /// <summary>
         /// This serves to remember which HandshakeType was last received.
         /// </summary>
-        private HandshakeType m_lastReceivedMessage = HandshakeType.HelloRequest;
+        internal HandshakeType m_lastReceivedMessage = HandshakeType.HelloRequest;
 
         /// <summary>
         /// This serves to remember which HandshakeType was last sent.
         /// </summary>
-        private HandshakeType m_lastSentMessage = HandshakeType.HelloRequest;
+        internal HandshakeType m_lastSentMessage = HandshakeType.HelloRequest;
 
         /// <summary>
         /// This is the local hash-calculator, as opposed to the hash-calculator for the remote-peer.
@@ -149,11 +152,6 @@ namespace NetMQ.Security.TLS12
         public VerifyCertificateDelegate VerifyCertificate { get; set; }
 
         /// <summary>
-        /// 当前使用的子版本。
-        /// 3.3是标准的TLS1.2版本协议。
-        /// </summary>
-        public ProtocolVersion SubProtocolVersion { get; private set; }
-        /// <summary>
         /// Given an incoming handshake-protocol message, route it to the corresponding handler.
         /// </summary>
         /// <param name="incomingMessage">the NetMQMessage that has come in</param>
@@ -203,18 +201,23 @@ namespace NetMQ.Security.TLS12
             else
             {
                 handshakeType = (HandshakeType)incomingMessage[0].Buffer[0];
-                ////起始计数从0开始，Finished在解密的时候会添加计数，其他record层都要在这里添加读计数
-                //m_secureChannel.RecordLayer.GetAndIncreaseReadSequneceNumber();
             }
 
             switch (handshakeType)
             {
                 case HandshakeType.HelloRequest:
                     {
-                        //接收到对端的HelloRequest重新协商。暂时抛出异常重置连接
-                        NetMQMessage alert = m_secureChannel.HandshakeFailure(AlertLevel.Fatal, m_secureChannel.ProtocolVersion);
-                        //抛出异常，返回alert协议，通知客户端断开连接。
-                        throw new AlertException(alert, new Exception(AlertDescription.NoRenegotiation.ToString()));
+                        /// 当客户端收到了服务端的Hello Request时可以有以下4种行为。
+                        /// 1. 当客户端正在协商会话，可以忽略该消息。
+                        /// 2. 若客户端未在协商会话但不希望重新协商时，可以忽略该消息。
+                        /// 3. 若客户端未在协商会话但不希望重新协商时，可以发送no_renegotiation警报。
+                        /// 4. 若客户端希望重新协商会话，则需要发送ClientHello重新进行TLS握手。
+                        ////接收到对端的HelloRequest重新协商。暂时抛出异常重置连接
+                        //NetMQMessage alert = m_secureChannel.HandshakeFailure(AlertLevel.Fatal, m_secureChannel.ProtocolVersion);
+                        ////抛出异常，返回alert协议，通知客户端断开连接。
+                        //throw new AlertException(alert, new Exception(AlertDescription.NoRenegotiation.ToString()));
+                        //这里简单处理，直接忽略消息
+                        break;
                     }
                 case HandshakeType.ClientHello:
                     OnClientHello(incomingMessage, outgoingMessages);
@@ -229,7 +232,7 @@ namespace NetMQ.Security.TLS12
                     OnServerHelloDone(incomingMessage, outgoingMessages);
                     break;
                 case HandshakeType.ClientKeyExchange:
-                    OnClientKeyExchange(incomingMessage);
+                    OnClientKeyExchange(incomingMessage, outgoingMessages);
                     break;
                 case HandshakeType.Finished:
                     OnFinished(incomingMessage, outgoingMessages);
@@ -246,7 +249,83 @@ namespace NetMQ.Security.TLS12
 
             return m_done;
         }
+        public bool ProcessMessages(HandshakeProtocol protocol , List<RecordLayer> outRecordLayers)
+        {
+            if (protocol == null)
+            {
+                if (m_lastReceivedMessage == m_lastSentMessage &&
+                    m_lastSentMessage == HandshakeType.HelloRequest &&
+                    SecurityParameters.Entity == ConnectionEnd.Client)
+                {
+                    RecordLayer recordLayer = new RecordLayer();
+                    //客户端发送握手
+                    OnHelloRequest(recordLayer);
+                    outRecordLayers.Add(recordLayer);
+                    return false;
+                }
+                else
+                {
+                    throw new ArgumentNullException(nameof(protocol));
+                }
+            }
+            HandshakeType handshakeType = protocol.HandshakeType;
 
+            switch (handshakeType)
+            {
+                case HandshakeType.HelloRequest:
+                    {
+                        /// 当客户端收到了服务端的Hello Request时可以有以下4种行为。
+                        /// 1. 当客户端正在协商会话，可以忽略该消息。
+                        /// 2. 若客户端未在协商会话但不希望重新协商时，可以忽略该消息。
+                        /// 3. 若客户端未在协商会话但不希望重新协商时，可以发送no_renegotiation警报。
+                        /// 4. 若客户端希望重新协商会话，则需要发送ClientHello重新进行TLS握手。
+                        ////接收到对端的HelloRequest重新协商。暂时抛出异常重置连接
+                        //NetMQMessage alert = m_secureChannel.HandshakeFailure(AlertLevel.Fatal, m_secureChannel.ProtocolVersion);
+                        ////抛出异常，返回alert协议，通知客户端断开连接。
+                        //throw new AlertException(alert, new Exception(AlertDescription.NoRenegotiation.ToString()));
+                        //这里简单处理，直接忽略消息
+                        break;
+                    }
+                case HandshakeType.ClientHello:
+                    {
+                        RecordLayer recordLayer = m_secureChannel.CreateRecordLayer();
+                        OnClientHello(protocol, recordLayer);
+                        outRecordLayers.Add(recordLayer);
+                        break;
+                    }
+                case HandshakeType.ServerHello:
+                    OnServerHello(protocol);
+                    break;
+                case HandshakeType.Certificate:
+                    OnCertificate(protocol);
+                    break;
+                case HandshakeType.ServerHelloDone:
+                    OnServerHelloDone(protocol, outRecordLayers);
+                    break;
+                case HandshakeType.ClientKeyExchange:
+                    OnClientKeyExchange(protocol, outRecordLayers);
+                    break;
+                case HandshakeType.Finished:
+                    {
+                        RecordLayer recordLayer = OnFinished(protocol);
+                        if (recordLayer != null)
+                        {
+                            outRecordLayers.Add(recordLayer);
+                        }
+                        break;
+                    }
+                default:
+                    {
+                        NetMQMessage alert = m_secureChannel.HandshakeFailure(AlertLevel.Fatal, m_secureChannel.ProtocolVersion);
+                        //抛出异常，返回alert协议，通知客户端断开连接。
+                        throw new AlertException(alert, new Exception(AlertDescription.UnexpectedMessage.ToString()));
+                    }
+            }
+
+            m_lastReceivedMessage = handshakeType;
+
+            return m_done;
+        }
         /// <summary>
         /// Compute the hash of the given message twice, first using the local hashing algorithm
         /// and then again using the remote-peer hashing algorithm.
@@ -267,7 +346,11 @@ namespace NetMQ.Security.TLS12
                 HashRemote(frame.Buffer);
             }
         }
-
+        private void HashLocalAndRemote(byte[] data)
+        {
+            HashLocal(data);
+            HashRemote(data);
+        }
         /// <summary>
         /// Use the local (as opposed to that of the remote-peer) hashing algorithm to compute a hash
         /// of the frames within the given NetMQMessage.
@@ -324,13 +407,14 @@ namespace NetMQ.Security.TLS12
         {
             //客户端根据配置决定握手层版本号
             var clientHelloMessage = new ClientHelloMessage();
-            clientHelloMessage.RandomNumber = new byte[RandomNumberLength];
+            clientHelloMessage.Version = ProtocolVersion.TLS12; 
+            clientHelloMessage.Random = new byte[RandomNumberLength];
 
             clientHelloMessage.SessionID = SessionID;
 
-            m_rng.GetBytes(clientHelloMessage.RandomNumber);
+            m_rng.GetBytes(clientHelloMessage.Random);
 
-            SecurityParameters.ClientRandom = clientHelloMessage.RandomNumber;
+            SecurityParameters.ClientRandom = clientHelloMessage.Random;
 
             clientHelloMessage.CipherSuites = AllowedCipherSuites;
 
@@ -340,6 +424,29 @@ namespace NetMQ.Security.TLS12
 
             //第一个record的seqnum从0开始
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
+            m_lastSentMessage = HandshakeType.ClientHello;
+        }
+        private void OnHelloRequest(RecordLayer outgoingMessages)
+        {
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            //客户端根据配置决定握手层版本号
+            var clientHelloMessage = new ClientHelloMessage();
+            outgoingMessages.ProtocolVersion = clientHelloMessage.Version = ProtocolVersion.TLS12;
+            clientHelloMessage.Random = new byte[RandomNumberLength];
+
+            clientHelloMessage.SessionID = SessionID ?? EmptyArray<byte>.Instance;
+
+            m_rng.GetBytes(clientHelloMessage.Random);
+
+            SecurityParameters.ClientRandom = clientHelloMessage.Random;
+
+            clientHelloMessage.CipherSuites = AllowedCipherSuites;
+            protocol.SetHandshakeMessage(clientHelloMessage);
+            byte[] outgoingMessage = protocol.HandShakeData;
+
+            HashLocalAndRemote(outgoingMessage);
+            //第一个record的seqnum从0开始
+            outgoingMessages.AddHandshake(protocol);
             m_lastSentMessage = HandshakeType.ClientHello;
         }
 
@@ -357,19 +464,16 @@ namespace NetMQ.Security.TLS12
             //服务端根据主版本号先判断
             var handShakeLengthFrame = incomingMessage.Pop();
             NetMQFrame versionFrame = incomingMessage.Pop();
-            SubProtocolVersion = (ProtocolVersion)versionFrame.Buffer;
 
-            if (!this.m_secureChannel.Configuration.SupposeProtocolVersions.Any(v => v.Equals(SubProtocolVersion)))
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
-            }
+            NegotiateVersioin((ProtocolVersion)versionFrame.Buffer);
+
             //获取保存子协议版本
             var clientHelloMessage = new ClientHelloMessage();
 
             clientHelloMessage.SetFromNetMQMessage(incomingMessage);
             //获取到客户端的sessionid
             this.SessionID = clientHelloMessage.SessionID;
-            SecurityParameters.ClientRandom = clientHelloMessage.RandomNumber;
+            SecurityParameters.ClientRandom = clientHelloMessage.Random;
 
             AddServerHelloMessage(outgoingMessages, clientHelloMessage.CipherSuites);
 
@@ -378,12 +482,79 @@ namespace NetMQ.Security.TLS12
             AddServerHelloDone(outgoingMessages);
         }
 
+        /// <exception cref="NetMQSecurityException">The client hello message must not be received while expecting a different message.</exception>
+        private void OnClientHello(HandshakeProtocol protocol, RecordLayer outRecordLayer)
+        {
+            ClientHelloMessage message = protocol.HandshakeMessage as ClientHelloMessage;
+            Debug.Assert(message != null);
+            //服务端收到ClientHello，
+            //1. 客户端主动TLS握手，服务端为默认状态
+            //2. 服务端发起HelloRequesst 要求重新握手。
+            if (m_lastReceivedMessage != HandshakeType.HelloRequest || m_lastSentMessage != HandshakeType.HelloRequest)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Client Hello received when expecting another message");
+            }
+
+            HashLocalAndRemote(protocol.HandShakeData);
+            //协商版本号
+            NegotiateVersioin(message.Version);
+            outRecordLayer.ProtocolVersion = m_secureChannel.ProtocolVersion;
+            //获取保存子协议版本
+            //获取到客户端的sessionid
+            this.SessionID = message.SessionID;
+            SecurityParameters.ClientRandom = message.Random;
+            AddServerHelloMessage(outRecordLayer, message.CipherSuites);
+
+            AddCertificateMessage(outRecordLayer);
+
+            AddServerHelloDone(outRecordLayer);
+        }
+
+        internal void NegotiateVersioin(ProtocolVersion currentVersion)
+        {
+            ProtocolVersion maxSupposeVersionl = ProtocolVersion.UN_SUPPOSE_VERSION;
+            foreach(var version in m_secureChannel.Configuration.SupposeProtocolVersions)
+            {
+                // 服务端根据客户端发送的版本号返回一个服务端支持的最高版本号。若客户端不支持服务器选择的版本号，则客户端必须发送`protocol_version`警报消息并关闭连接。
+                // 若服务端接收到的版本号小于当前支持的最高版本，且服务端希望与旧客户端协商，则返回不大于客户端版本的服务端最高版本。若服务端仅支持大于client_version的版本，则必须发送`protocol_version`警报消息并关闭连接。
+                // 如果服务器收到的版本号大于服务器支持的最高版本的版本，则必须返回服务器所支持的最高版本。
+            
+                if (version == currentVersion)
+                {
+                    m_secureChannel.SetProtocolVersion(version);
+                    return;
+                }
+                if(maxSupposeVersionl == ProtocolVersion.UN_SUPPOSE_VERSION && version< currentVersion)
+                {
+                    maxSupposeVersionl = version;
+                }
+            }
+            if(maxSupposeVersionl == ProtocolVersion.UN_SUPPOSE_VERSION)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
+                //NetMQMessage alert = m_secureChannel.Alert(AlertLevel.Fatal, AlertDescription.ProtocolVersion);
+                //throw new AlertException(alert, null);
+            }
+            //选择一个最高支持的版本
+            m_secureChannel.SetProtocolVersion(maxSupposeVersionl);
+        }
+
         private void AddServerHelloDone(OutgoingMessageBag outgoingMessages)
         {
             var serverHelloDoneMessage = new ServerHelloDoneMessage();
             NetMQMessage outgoingMessage = serverHelloDoneMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
+            m_lastSentMessage = HandshakeType.ServerHelloDone;
+        }
+        private void AddServerHelloDone(RecordLayer outgoingMessages)
+        {
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            var serverHelloDoneMessage = new ServerHelloDoneMessage();
+            protocol.SetHandshakeMessage(serverHelloDoneMessage);
+            outgoingMessages.AddHandshake(protocol);
+            byte[] outgoingMessage = protocol.HandShakeData;
+            HashLocalAndRemote(outgoingMessage);
             m_lastSentMessage = HandshakeType.ServerHelloDone;
         }
 
@@ -396,14 +567,25 @@ namespace NetMQ.Security.TLS12
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
             m_lastSentMessage = HandshakeType.Certificate;
         }
-
-        private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
+        private void AddCertificateMessage(RecordLayer outgoingMessages)
         {
-            var serverHelloMessage = new ServerHelloMessage ();
-            serverHelloMessage.RandomNumber = new byte[RandomNumberLength];
-            m_rng.GetBytes(serverHelloMessage.RandomNumber);
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            var certificateMessage = new CertificateMessage();
+            certificateMessage.Certificate = LocalCertificate;
+            protocol.SetHandshakeMessage(certificateMessage);
+            byte[] outgoingMessage = protocol.HandShakeData;
+            HashLocalAndRemote(outgoingMessage);
+            outgoingMessages.AddHandshake(protocol);
+            m_lastSentMessage = HandshakeType.Certificate;
+        }
+        private ServerHelloMessage CreateServerHelloMessage(CipherSuite[] cipherSuites)
+        {
+            var serverHelloMessage = new ServerHelloMessage();
+            serverHelloMessage.Version = m_secureChannel.ProtocolVersion;
+            serverHelloMessage.Random = new byte[RandomNumberLength];
+            m_rng.GetBytes(serverHelloMessage.Random);
 
-           SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
+            SecurityParameters.ServerRandom = serverHelloMessage.Random;
 
             //客户端没有传sessionid则生成一个新的sessionid
             if (this.SessionID.Length == 0) this.SessionID = Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
@@ -422,13 +604,28 @@ namespace NetMQ.Security.TLS12
                     break;
                 }
             }
+            return serverHelloMessage;
+        }
+        private void AddServerHelloMessage(OutgoingMessageBag outgoingMessages, CipherSuite[] cipherSuites)
+        {
 
+            var serverHelloMessage = CreateServerHelloMessage(cipherSuites);
             NetMQMessage outgoingMessage = serverHelloMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
             m_lastSentMessage = HandshakeType.ServerHello;
         }
 
+        private void AddServerHelloMessage(RecordLayer outgoingMessages, CipherSuite[] cipherSuites)
+        {
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            var serverHelloMessage = CreateServerHelloMessage(cipherSuites);
+            protocol.SetHandshakeMessage(serverHelloMessage);
+            byte[] outgoingMessage = protocol.HandShakeData;
+            HashLocalAndRemote(outgoingMessage);
+            outgoingMessages.AddHandshake(protocol);
+            m_lastSentMessage = HandshakeType.ServerHello;
+        }
         /// <exception cref="NetMQSecurityException">The server hello message must not be received while expecting a different message.</exception>
         private void OnServerHello(NetMQMessage incomingMessage)
         {
@@ -444,17 +641,62 @@ namespace NetMQ.Security.TLS12
                 //标准的获取长度和版本号，并校验
             var handShakeLengthFrame = incomingMessage.Pop();
             NetMQFrame versionFrame = incomingMessage.Pop();
-            SubProtocolVersion = (ProtocolVersion)versionFrame.Buffer;
-            if (!this.m_secureChannel.Configuration.SupposeProtocolVersions.Any(v => v.Equals(SubProtocolVersion)))
+            if (!this.m_secureChannel.Configuration.SupposeProtocolVersions.Any(v => v == m_secureChannel.ProtocolVersion ))
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "the hand shake protocol version is not supposed");
             }
             var serverHelloMessage =  new ServerHelloMessage();
             serverHelloMessage.SetFromNetMQMessage(incomingMessage);
             this.SessionID = serverHelloMessage.SessionID;
-            SecurityParameters.ServerRandom = serverHelloMessage.RandomNumber;
+            SecurityParameters.ServerRandom = serverHelloMessage.Random;
 
             SetCipherSuite(serverHelloMessage.CipherSuite);
+        }
+        /// <exception cref="NetMQSecurityException">The server hello message must not be received while expecting a different message.</exception>
+        private void OnServerHello(HandshakeProtocol protocol)
+        {
+            ServerHelloMessage message = protocol.HandshakeMessage as ServerHelloMessage;
+            Debug.Assert(message != null);
+
+            if (m_lastReceivedMessage != HandshakeType.HelloRequest || m_lastSentMessage != HandshakeType.ClientHello)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Server Hello received when expecting another message");
+            }
+
+            HashLocalAndRemote(protocol);
+
+            NegotiateVersioin(message.Version);
+
+            //*会话ID：用于表示客户端和服务端之间的会话。若客户端提供了会话ID，则可以校验是否与历史会话匹配。
+            //  *若不匹配，则服务端可以选择直接使用客户端的会话ID或根据自定义规则生成一个新的会话ID，客户端需要保存服务端返回的会话ID当作本次会话的ID。
+            //  *若匹配，则可以直接执行1 - RTT握手流程，返回ServerHello后直接返回`ChangeCipherSpec`和`Finished`消息。
+            //暂时都走完全握手流程，这样安全性
+            bool result = FindSession(message.SessionID);
+            this.SessionID = message.SessionID;
+            SecurityParameters.ServerRandom = message.Random;
+
+            SetCipherSuite(message.CipherSuite);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sessionID"></param>
+        /// <returns></returns>
+        private bool FindSession(byte[] sessionID)
+        {
+            //暂时都走完全握手流程
+            return false;
+        }
+        private void OnCertificate(CertificateMessage message)
+        {
+            //Awlays return false.
+            if (!VerifyCertificate(message.Certificate))
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Unable to verify certificate");
+            }
+
+            RemoteCertificate = message.Certificate;
         }
 
         /// <exception cref="NetMQSecurityException">Must be able to verify the certificate.</exception>
@@ -469,17 +711,24 @@ namespace NetMQ.Security.TLS12
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var certificateMessage = new CertificateMessage();
-            certificateMessage.SetFromNetMQMessage(incomingMessage);
+            var message = new CertificateMessage();
+            message.SetFromNetMQMessage(incomingMessage);
 
-            //Awlays return false.
-            if (!VerifyCertificate(certificateMessage.Certificate))
+            OnCertificate(message);
+        }
+        private void OnCertificate(HandshakeProtocol protocol)
+        {
+            CertificateMessage message = protocol.HandshakeMessage as CertificateMessage;
+            Debug.Assert(message != null);
+            if (m_lastReceivedMessage != HandshakeType.ServerHello || m_lastSentMessage != HandshakeType.ClientHello)
             {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Unable to verify certificate");
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Certificate received when expecting another message");
             }
 
-            RemoteCertificate = certificateMessage.Certificate;
+            HashLocalAndRemote(protocol);
+            OnCertificate(message);
         }
+
 
         /// <exception cref="NetMQSecurityException">The server hello message must not be received while expecting another message.</exception>
         private void OnServerHelloDone(NetMQMessage incomingMessage,
@@ -498,14 +747,30 @@ namespace NetMQ.Security.TLS12
 
             AddClientKeyExchange(outgoingMessages);
 
-            InvokeChangeCipherSuite();
+            InvokeChangeCipherSuite(outgoingMessages);
 
             AddFinished(outgoingMessages);
         }
-
-        private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
+        private void OnServerHelloDone(HandshakeProtocol protocol, List<RecordLayer> outgoingMessages)
         {
-            var clientKeyExchangeMessage =  new ClientKeyExchangeMessage();
+            ServerHelloDoneMessage message = protocol.HandshakeMessage as ServerHelloDoneMessage;
+            Debug.Assert(message != null);
+            if (m_lastReceivedMessage != HandshakeType.Certificate || m_lastSentMessage != HandshakeType.ClientHello)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Server Hello Done received when expecting another message");
+            }
+
+            HashLocalAndRemote(protocol);
+
+            outgoingMessages.Add(AddClientKeyExchange());
+
+            outgoingMessages.Add(InvokeChangeCipherSuite());
+
+            outgoingMessages.Add(AddFinished());
+        }
+        private ClientKeyExchangeMessage CreateClientKeyExchangeMessage()
+
+        {
             //struct {
             //      ProtocolVersion client_version;
             //    opaque random[46];
@@ -533,19 +798,46 @@ namespace NetMQ.Security.TLS12
 
             Buffer.BlockCopy(random, 0, premasterSecret, 2, random.Length);
 
+
             var rsa = RemoteCertificate.PublicKey.Key as RSACryptoServiceProvider;
+            var clientKeyExchangeMessage = new ClientKeyExchangeMessage();
             clientKeyExchangeMessage.EncryptedPreMasterSecret = rsa.Encrypt(premasterSecret, false);
 
             GenerateMasterSecret(premasterSecret);
+            return clientKeyExchangeMessage;
+        }
+        private RecordLayer AddClientKeyExchange()
+        {
+            RecordLayer recordLayer = m_secureChannel.CreateRecordLayer();
+            var clientKeyExchangeMessage = CreateClientKeyExchangeMessage();
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            protocol.SetHandshakeMessage(clientKeyExchangeMessage);
+            byte[] outgoingMessage = protocol.HandShakeData;
+            HashLocalAndRemote(outgoingMessage);
+            recordLayer.AddHandshake(protocol);
+            m_lastSentMessage = HandshakeType.ClientKeyExchange;
+            return recordLayer;
+        }
+        private void AddClientKeyExchange(OutgoingMessageBag outgoingMessages)
+        {
+            var clientKeyExchangeMessage = CreateClientKeyExchangeMessage();
 
             NetMQMessage outgoingMessage = clientKeyExchangeMessage.ToNetMQMessage();
             HashLocalAndRemote(outgoingMessage);
             outgoingMessages.AddHandshakeMessage(outgoingMessage);
             m_lastSentMessage = HandshakeType.ClientKeyExchange;
         }
+        private void OnClientKeyExchange(ClientKeyExchangeMessage message)
+        {
+            var rsa = LocalCertificate.PrivateKey as RSACryptoServiceProvider;
+
+            byte[] premasterSecret = rsa.Decrypt(message.EncryptedPreMasterSecret, false);
+            GenerateMasterSecret(premasterSecret);
+
+        }
 
         /// <exception cref="NetMQSecurityException">The client key exchange must not be received while expecting a another message.</exception>
-        private void OnClientKeyExchange(NetMQMessage incomingMessage)
+        private void OnClientKeyExchange(NetMQMessage incomingMessage, OutgoingMessageBag outgoingMessages)
         {
             if (m_lastReceivedMessage != HandshakeType.ClientHello || m_lastSentMessage != HandshakeType.ServerHelloDone)
             {
@@ -555,15 +847,54 @@ namespace NetMQ.Security.TLS12
             HashLocalAndRemote(incomingMessage);
 
             var handShakeTypeFrame = incomingMessage.Pop();
-            var clientKeyExchangeMessage = new ClientKeyExchangeMessage();
-            clientKeyExchangeMessage.SetFromNetMQMessage(incomingMessage);
+            var message = new ClientKeyExchangeMessage();
+            message.SetFromNetMQMessage(incomingMessage);
 
-            var rsa = LocalCertificate.PrivateKey as RSACryptoServiceProvider;
+            OnClientKeyExchange(message);
 
-            byte[] premasterSecret = rsa.Decrypt(clientKeyExchangeMessage.EncryptedPreMasterSecret, false);
-            GenerateMasterSecret(premasterSecret);
+            InvokeChangeCipherSuite(outgoingMessages);
+        }
+        private void OnClientKeyExchange(HandshakeProtocol protocol, List<RecordLayer>  outRecordLayers)
+        {
+            ClientKeyExchangeMessage message = protocol.HandshakeMessage as ClientKeyExchangeMessage;
+            Debug.Assert(message != null);
+            if (m_lastReceivedMessage != HandshakeType.ClientHello || m_lastSentMessage != HandshakeType.ServerHelloDone)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Client Key Exchange received when expecting another message");
+            }
 
-            InvokeChangeCipherSuite();
+            HashLocalAndRemote(protocol);
+
+            OnClientKeyExchange(message);
+
+            outRecordLayers.Add(InvokeChangeCipherSuite());
+        }
+        private void OnFinished(FinishedMessage message)
+        {
+            m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
+
+            byte[] seed = m_remoteHash.Hash;
+
+#if NET40
+            m_remoteHash.Dispose();
+#else
+            m_remoteHash.Clear();
+#endif
+            m_remoteHash = null;
+
+            var label = SecurityParameters.Entity == ConnectionEnd.Client ? ServerFinishedLabel : ClientFinshedLabel;
+
+            var verifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);
+
+#if DEBUG
+
+            Debug.WriteLine("[verify_data]:" + BitConverter.ToString(verifyData));
+#endif
+            if (!verifyData.SequenceEqual(message.VerifyData))
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeVerifyData, "peer verify data wrong");
+            }
+
         }
 
         /// <exception cref="NetMQSecurityException">The Finished message must not be received while expecting a another message.</exception>
@@ -586,32 +917,10 @@ namespace NetMQ.Security.TLS12
                 HashLocal(incomingMessage);
             }
 
-            var finishedMessage = new FinishedMessage();
-            finishedMessage.SetFromNetMQMessage(incomingMessage);
+            var message = new FinishedMessage();
+            message.SetFromNetMQMessage(incomingMessage);
 
-            m_remoteHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
-
-            byte[] seed = m_remoteHash.Hash;
-
-#if NET40
-            m_remoteHash.Dispose();
-#else
-            m_remoteHash.Clear();
-#endif
-            m_remoteHash = null;
-
-            var label = SecurityParameters.Entity == ConnectionEnd.Client ? ServerFinishedLabel : ClientFinshedLabel;
-
-            var verifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);
-
-#if DEBUG
-
-            Debug.WriteLine("[verify_data]:" + BitConverter.ToString(verifyData));
-#endif
-            if (!verifyData.SequenceEqual(finishedMessage.VerifyData))
-            {
-                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeVerifyData, "peer verify data wrong");
-            }
+            OnFinished(message);
 
             if (SecurityParameters.Entity == ConnectionEnd.Server)
             {
@@ -624,7 +933,53 @@ namespace NetMQ.Security.TLS12
             m_done = true;
         }
 
+        /// <exception cref="NetMQSecurityException">The Finished message must not be received while expecting a another message.</exception>
+        /// <exception cref="NetMQSecurityException">The peer verification data must be valid.</exception>
+        private RecordLayer OnFinished(HandshakeProtocol protocol)
+        {
+            FinishedMessage message = protocol.HandshakeMessage as FinishedMessage;
+            Debug.Assert(message != null);
+            if (
+                (SecurityParameters.Entity == ConnectionEnd.Client &&
+                 (!m_secureChannel.ChangeSuiteChangeArrived ||
+                  m_lastReceivedMessage != HandshakeType.ServerHelloDone || m_lastSentMessage != HandshakeType.Finished)) ||
+                (SecurityParameters.Entity == ConnectionEnd.Server &&
+                 (!m_secureChannel.ChangeSuiteChangeArrived ||
+                  m_lastReceivedMessage != HandshakeType.ClientKeyExchange || m_lastSentMessage != HandshakeType.ServerHelloDone)))
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Finished received when expecting another message");
+            }
+
+            if (SecurityParameters.Entity == ConnectionEnd.Server)
+            {
+                HashLocal(protocol);
+            }
+            OnFinished(message);
+            RecordLayer outgoingMessages = null;
+            if (SecurityParameters.Entity == ConnectionEnd.Server)
+            {
+                outgoingMessages = AddFinished();
+#if DEBUG
+                Debug.WriteLine("[finish]");
+#endif
+            }
+
+            m_done = true;
+            return outgoingMessages;
+        }
         private void AddFinished(OutgoingMessageBag outgoingMessages)
+        {
+            FinishedMessage finishedMessage = CreateFinishedMessage();
+            NetMQMessage outgoingMessage = finishedMessage.ToNetMQMessage();
+            outgoingMessages.AddHandshakeMessage(outgoingMessage);
+            m_lastSentMessage = HandshakeType.Finished;
+
+            if (SecurityParameters.Entity == ConnectionEnd.Client)
+            {
+                HashRemote(outgoingMessage);
+            }
+        }
+        private FinishedMessage CreateFinishedMessage()
         {
             m_localHash.TransformFinalBlock(EmptyArray<byte>.Instance, 0, 0);
 
@@ -636,19 +991,36 @@ namespace NetMQ.Security.TLS12
 
             var label = SecurityParameters.Entity == ConnectionEnd.Server ? ServerFinishedLabel : ClientFinshedLabel;
 
-            var finishedMessage =  new FinishedMessage();
+            var finishedMessage = new FinishedMessage();
             finishedMessage.VerifyData = PRF.Get(SecurityParameters.MasterSecret, label, seed, FinishedMessage.VerifyDataLength);
 #if DEBUG
             Debug.WriteLine("[verify_data]:" + BitConverter.ToString(finishedMessage.VerifyData));
 #endif
-            NetMQMessage outgoingMessage = finishedMessage.ToNetMQMessage();
-            outgoingMessages.AddHandshakeMessage(outgoingMessage);
+            return finishedMessage;
+        }
+
+        private RecordLayer AddFinished()
+        {
+            RecordLayer recordLayer = m_secureChannel.CreateRecordLayer();
+            HandshakeProtocol protocol = new HandshakeProtocol();
+            FinishedMessage finishedMessage = CreateFinishedMessage();
+            //未设置加密，procotol是明文，握手时需要明文
+            protocol.SetHandshakeMessage(finishedMessage);
+            //原始数据
+            byte[] outgoingMessage = protocol.HandShakeData;
+            recordLayer.AddHandshake(protocol);
+            //数据加密
+            protocol.HandShakeData = new ReadonlyBuffer<byte>(m_secureChannel.Context.EncryptMessage(recordLayer.ContentType, outgoingMessage));
+            //设置HandShakeData 数据加密
+            protocol.IsEncrypted = true;
             m_lastSentMessage = HandshakeType.Finished;
 
             if (SecurityParameters.Entity == ConnectionEnd.Client)
             {
+                //需要hash的是原始数据
                 HashRemote(outgoingMessage);
             }
+            return recordLayer;
         }
 
         /// <exception cref="ArgumentOutOfRangeException">cipher must have a valid value.</exception>
@@ -714,8 +1086,25 @@ namespace NetMQ.Security.TLS12
         /// <summary>
         /// Raise the CipherSuiteChange event.
         /// </summary>
-        private void InvokeChangeCipherSuite()
+        private RecordLayer InvokeChangeCipherSuite()
         {
+            RecordLayer recordLayer = m_secureChannel.CreateRecordLayer();
+            ChangeCipherSpecProtocol protocol = new ChangeCipherSpecProtocol();
+            recordLayer.AddChangeCipherSpecProtocol(protocol);
+            // The change cipher spec protocol exists to signal transitions in ciphering strategies.
+            // The protocol consists of a single message, which is encrypted and compressed under the current(not the pending) connection state. 
+            // The message consists of a single byte of value 1.
+            // enum { change_cipher_spec(1), (255) } type;
+            CipherSuiteChange?.Invoke(this, EventArgs.Empty);
+            return recordLayer;
+        }
+        private void InvokeChangeCipherSuite(OutgoingMessageBag outgoingMessages)
+        {
+            // The change cipher spec protocol exists to signal transitions in ciphering strategies.
+            // The protocol consists of a single message, which is encrypted and compressed under the current(not the pending) connection state. 
+            // The message consists of a single byte of value 1.
+            // enum { change_cipher_spec(1), (255) } type;
+            outgoingMessages.AddCipherChangeMessage(new byte[] { 1 });
             CipherSuiteChange?.Invoke(this, EventArgs.Empty);
         }
 

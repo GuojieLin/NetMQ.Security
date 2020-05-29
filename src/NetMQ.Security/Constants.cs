@@ -9,11 +9,11 @@ namespace NetMQ.Security
     {
         public const int CONTENT_TYPE_LENGTH = 1;
         public const int PROTOCOL_VERSION_LENGTH = 2;
-        public const int HAND_SHAKE_LENGTH = 2;
+        public const int RECORD_LAYER_LENGTH = 2;
 
 
         public const int HAND_SHAKE_TYPE = 1;
-        public const int HAND_SHAKE_CONTENT_LENGTH = 3;
+        public const int HAND_SHAKE_LENGTH = 3;
         public const int SESSION_ID_LENGTH = 1;
         public const int RANDOM_LENGTH = 32;
         public const int CIPHER_SUITES_LENGTH = 2;

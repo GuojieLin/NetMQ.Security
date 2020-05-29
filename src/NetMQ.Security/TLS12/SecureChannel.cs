@@ -5,9 +5,12 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using JetBrains.Annotations;
+using NetMQ.Security.Decoder;
 using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
+using NetMQ.Security.Layer;
 using NetMQ.Security.TLS12.HandshakeMessages;
+using NetMQ.Security.TLS12.Layer;
 
 namespace NetMQ.Security.TLS12
 {
@@ -18,14 +21,14 @@ namespace NetMQ.Security.TLS12
     public class SecureChannel : ISecureChannel
     {
         internal HandshakeLayer m_handshakeLayer;
-        internal RecordLayer RecordLayer;
+        internal Context Context;
         public Configuration Configuration { get; private set; }
         private readonly OutgoingMessageBag m_outgoingMessageBag;
         public byte[] SessionId { get; private set; }
         /// <summary>
         /// 当前使用的版本。
         /// </summary>
-        public byte[] ProtocolVersion { get; private set; }
+        public ProtocolVersion ProtocolVersion { get; private set; }
 
         private ConnectionEnd n_ConnectionEnd;
 
@@ -76,6 +79,12 @@ namespace NetMQ.Security.TLS12
             SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server, configuration);
             return secureChannel;
         }
+        public RecordLayer CreateRecordLayer()
+        {
+            RecordLayer recordLayer = new RecordLayer();
+            recordLayer.ProtocolVersion = ProtocolVersion;
+            return recordLayer;
+        }
         /// <summary>
         /// Create a new SecureChannel with the given <see cref="ConnectionEnd"/>.
         /// </summary>
@@ -87,7 +96,7 @@ namespace NetMQ.Security.TLS12
 
             m_handshakeLayer = new HandshakeLayer(this, connectionEnd);
             m_handshakeLayer.CipherSuiteChange += OnCipherSuiteChangeFromHandshakeLayer;
-            RecordLayer = new RecordLayer();
+            Context = new Context();
 
             m_outgoingMessageBag = new OutgoingMessageBag(this);
             if (!Configuration.VerifyCertificate)
@@ -95,6 +104,8 @@ namespace NetMQ.Security.TLS12
                 //若不验证证书，则直接返回true
                 SetVerifyCertificate(c => true);
             }
+            //默认不支持的协议号，需要双方协商
+            ProtocolVersion = ProtocolVersion.UN_SUPPOSE_VERSION;
         }
         /// <summary>
         /// Assign the delegate to use to verify the X.509 certificate.
@@ -104,6 +115,15 @@ namespace NetMQ.Security.TLS12
         {
             m_handshakeLayer.VerifyCertificate = verifyCertificate;
         }
+        /// <summary>
+        /// Assign the delegate to use to verify the X.509 certificate.
+        /// </summary>
+        /// <param name="verifyCertificate"></param>
+        public void SetProtocolVersion(ProtocolVersion protocolVersion)
+        {
+            ProtocolVersion = protocolVersion;
+        }
+
 
         /// <summary>
         /// Process handshake and change cipher suite messages. This method should be called for every incoming message until the method returns true.
@@ -129,7 +149,6 @@ namespace NetMQ.Security.TLS12
             }
 #endif
             ContentType contentType = ContentType.Handshake;
-
             if (incomingMessage != null)
             {
                 // Verify that the first two frames are the protocol-version and the content-type,
@@ -155,19 +174,21 @@ namespace NetMQ.Security.TLS12
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidFrameLength, "Wrong length for protocol version frame");
                 }
+                ProtocolVersion protocolVersion = (ProtocolVersion)protocolVersionBytes;
+
                 if (n_ConnectionEnd == ConnectionEnd.Server && contentType == ContentType.Handshake)
                 {
                     //第一次握手时
-                    if (ProtocolVersion == null)
+                    if (ProtocolVersion == ProtocolVersion.UN_SUPPOSE_VERSION)
                     {
                         //校验记录层版本号是否支持
                         //如果客户端不支持服务器选择的版本（或不可接受），则客户端必须发送"protocol_version"警报消息并关闭连接。
                         //TLS 服务器还可以接收包含小于支持的最高版本的版本号的客户端Hello。 如果服务器希望与旧客户端协商，它将针对不大于 ClientHello.client_version 的服务器支持的最高版本进行。
                         //例如，如果服务器支持 TLS 1.0、1.1 和 1.2，并且client_version TLS 1.0，则服务器将继续使用 TLS 1.0 ServerHello。 如果服务器仅支持（或愿意使用）大于client_version的版本，则必须发送`protocol_version`警报消息并关闭连接。
-                        if (this.Configuration.SupposeProtocolVersions.Any(p => ((byte[])p).SequenceEqual(protocolVersionBytes)))
+                        if (this.Configuration.SupposeProtocolVersions.Any(p => p == protocolVersion))
                         {
                             //支持版本
-                            ProtocolVersion = protocolVersionBytes;
+                            ProtocolVersion = protocolVersion;
                         }
                         else
                         {
@@ -176,18 +197,18 @@ namespace NetMQ.Security.TLS12
                     }
                 }
                 //作为服务端首次接收到客户端
-                if (!protocolVersionBytes.SequenceEqual(ProtocolVersion))
+                if (protocolVersion != ProtocolVersion)
                 {
                     throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "Wrong protocol version");
                 }
                 RemoveLength(incomingMessage);
                 if (ChangeSuiteChangeArrived)
                 {
-                    RecordLayer.SetSubProtocolVersion(m_handshakeLayer.SubProtocolVersion);
+                    Context.SetProtocolVersion(ProtocolVersion);
 
                     //已经收到ChangeCipherSuite，接下来就是Finish
                     //Finished报文是第一个解密报文。需要解密。
-                    incomingMessage = RecordLayer.DecryptMessage(contentType, incomingMessage);
+                    incomingMessage = Context.DecryptMessage(contentType, incomingMessage);
                 }
                 if (contentType == ContentType.Alert)
                 {
@@ -234,7 +255,96 @@ namespace NetMQ.Security.TLS12
 
             return (SecureChannelReady = result && ChangeSuiteChangeArrived);
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="incomingMessage"></param>
+        /// <param name="outgoingMesssages"></param>
+        /// <returns></returns>
+        public bool ProcessMessage(RecordLayer incomingMessage, List<RecordLayer> outgoingMesssages)
+        {
+            ContentType contentType = ContentType.Handshake;
+            bool result = false;
+            if (incomingMessage != null)
+            {
+                // Verify that the content-type is either handshake, or change-cipher-suit..
+                contentType = incomingMessage.ContentType;
 
+                if (contentType != ContentType.ChangeCipherSpec && contentType != ContentType.Handshake && contentType != ContentType.Alert)
+                {
+                    throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidContentType, "Unknown content type");
+                }
+                //加密
+                if (ChangeSuiteChangeArrived)
+                {
+                    //只有Finished和Alert报文可以到这里
+                    //一定是加密的
+                    if (!incomingMessage.RecordProtocols[0].IsEncrypted)
+                    {
+                        throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeUnexpectedMessage, "Unexpected Message");
+                    }
+                    //已经收到ChangeCipherSuite，接下来就是Finish
+                    //Finished报文是第一个解密报文。需要解密。
+                    var decryptedDate = Context.DecryptMessage(contentType, incomingMessage.RecordProtocols[0].HandShakeData);
+                    //解析解密后的数据
+                    var decryptProtocol = DecoderFactory.Decode(contentType, decryptedDate, false/*数据已解密*/);
+                    //替换为解密后的协议
+                    incomingMessage.RecordProtocols = decryptProtocol;
+                    //替换加密协议
+                }
+                if (contentType == ContentType.Alert)
+                {
+                    ProcessAlert(incomingMessage.RecordProtocols[0]);
+                }
+            }
+            else
+            {
+                //作为客户端确定使用的版本号,后续客户端和服务端通讯都要校验版本号一致性。
+                //客户端使用3,3版本
+                ProtocolVersion = Configuration.SupposeProtocolVersions[0];
+                //客户端握手
+                result = m_handshakeLayer.ProcessMessages(null, outgoingMesssages);
+
+                return false;
+            }
+
+            if (contentType == ContentType.Handshake)
+            {
+                //握手时可能会有多个handshake协议负载到一个recordlayer上。
+                foreach (var recordProtocol in incomingMessage.RecordProtocols)
+                {
+                    result = m_handshakeLayer.ProcessMessages((HandshakeProtocol)recordProtocol, outgoingMesssages);
+                    this.SessionId = m_handshakeLayer.SessionID;
+                }
+            }
+            else
+            {
+                ////每个record计数都+1
+                //RecordLayer.GetAndIncreaseReadSequneceNumber();
+                //接下去的是Finished，需要加密。
+                ChangeSuiteChangeArrived = true;
+            }
+
+            return (SecureChannelReady = result && ChangeSuiteChangeArrived);
+        }
+
+        private void ProcessAlert(RecordProtocol recordProtocol)
+        {
+            AlertProtocol alertProtocol = recordProtocol as AlertProtocol;
+            if (alertProtocol.Level == AlertLevel.Fatal)
+            {
+                //具有致命级别的警报消息会导致立即终止连接。
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.HandshakeException, "peer response alert[" + alertProtocol.Description + "]");
+            }
+            else
+            {
+                //非致命记录一下，暂时不处理
+#if DEBUG
+                Debug.WriteLine("[warn alert[" + alertProtocol.Description + "]");
+#endif
+            }
+
+        }
         private void RemoveLength(NetMQMessage incomingMessage)
         {
             //去除长度
@@ -244,16 +354,11 @@ namespace NetMQ.Security.TLS12
 
         private void OnCipherSuiteChangeFromHandshakeLayer(object sender, EventArgs e)
         {
-            // The change cipher spec protocol exists to signal transitions in ciphering strategies.
-            // The protocol consists of a single message, which is encrypted and compressed under the current(not the pending) connection state. 
-            // The message consists of a single byte of value 1.
-            // enum { change_cipher_spec(1), (255) } type;
-            m_outgoingMessageBag.AddCipherChangeMessage(new byte[] { 1 });
 
-            RecordLayer.SecurityParameters = m_handshakeLayer.SecurityParameters;
+            Context.SecurityParameters = m_handshakeLayer.SecurityParameters;
 
-            RecordLayer.InitalizeCipherSuite();
-            RecordLayer.SetSubProtocolVersion(m_handshakeLayer.SubProtocolVersion);
+            Context.InitalizeCipherSuite();
+            Context.SetProtocolVersion(ProtocolVersion);
         }
 
         /// <param name="contentType">This identifies the type of content: ChangeCipherSpec, Handshake, or ApplicationData.</param>
@@ -313,21 +418,65 @@ namespace NetMQ.Security.TLS12
             }
 
             return EncryptFrame(ContentType.ApplicationData, plainBytes);
-        }        /// <summary>
-                 /// 包装成RecordLayer
-                 /// </summary>
-                 /// <param name="contentType">This identifies the type of content: ChangeCipherSpec, Handshake, or ApplicationData.</param>
-                 /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
-                 /// <returns></returns>
+        }
+        /// <summary>
+        /// Encrypt the given NetMQMessage, wrapping it's content as application-data and prefixing it with the encryption protocol.
+        /// </summary>
+        /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
+        /// <returns>a new NetMQMessage that is encrypted</returns>
+        /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
+        /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
+        public List<RecordLayer> EncryptApplicationBytes([NotNull] ReadonlyByteBuffer buffer)
+        {
+            if (!SecureChannelReady)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.SecureChannelNotReady, "Cannot encrypt messages until the secure channel is ready");
+            }
+
+            if (buffer == null)
+            {
+                throw new ArgumentNullException(nameof(buffer));
+            }
+
+            return EncryptFrame(ContentType.ApplicationData, buffer);
+        }
+        /// <summary>
+        /// 包装成RecordLayer
+        /// </summary>
+        /// <param name="contentType">This identifies the type of content: ChangeCipherSpec, Handshake, or ApplicationData.</param>
+        /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
+        /// <returns></returns>
         internal byte[] WrapToRecordLayerMessage(ContentType contentType, byte[] bytes)
         {
             //将数据加密
             //Change Cipher Spec 步骤之前返回明文
-            byte[] encryptedBytes = RecordLayer.EncryptMessage(contentType, bytes);
+            byte[] encryptedBytes = Context.EncryptMessage(contentType, bytes);
             byte[] recordLayerBytes = new byte[encryptedBytes.Length + 5];
             recordLayerBytes[0] = (byte)contentType;
-            recordLayerBytes[1] = ProtocolVersion[0];
-            recordLayerBytes[2] = ProtocolVersion[1];
+            recordLayerBytes[1] = ProtocolVersion.Major;
+            recordLayerBytes[2] = ProtocolVersion.Minor;
+            /// ContentType type;change_cipher_spec(20), alert(21), handshake(22), application_data(23), (255)
+            /// ProtocolVersion version;33
+            /// uint16 length;
+            /// opaque fragment[TLSPlaintext.length];
+            /// 
+            //增加长度
+            byte[] lengthBytes = encryptedBytes.LengthToBytes(2);
+            Buffer.BlockCopy(lengthBytes, 0, recordLayerBytes, 3, lengthBytes.Length);
+
+            Buffer.BlockCopy(encryptedBytes, 0, recordLayerBytes, 5, encryptedBytes.Length);
+
+            return recordLayerBytes;
+        }
+        internal byte[] WrapToRecordLayerMessage(ContentType contentType, ReadonlyBuffer<byte> bytes)
+        {
+            //将数据加密
+            //Change Cipher Spec 步骤之前返回明文
+            byte[] encryptedBytes = Context.EncryptMessage(contentType, bytes);
+            byte[] recordLayerBytes = new byte[encryptedBytes.Length + 5];
+            recordLayerBytes[0] = (byte)contentType;
+            recordLayerBytes[1] = ProtocolVersion.Major;
+            recordLayerBytes[2] = ProtocolVersion.Minor;
             /// ContentType type;change_cipher_spec(20), alert(21), handshake(22), application_data(23), (255)
             /// ProtocolVersion version;33
             /// uint16 length;
@@ -342,6 +491,40 @@ namespace NetMQ.Security.TLS12
             return recordLayerBytes;
         }
 
+        public List<RecordLayer> EncryptFrame(ContentType contentType, [NotNull] ReadonlyByteBuffer buffer)
+        {
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            //计算需要拆分包的个数
+            int splitCount = 0;
+            //每个ApplicationData包最大为2^14=16,384
+            //超过的数据大小需要分片后(压缩)加密。
+            splitCount = buffer.Length / Constants.MAX_TLS_PLAIN_TEXT_BYTE_SIZE;
+            do
+            {
+                bool split = buffer.Length > Constants.MAX_TLS_PLAIN_TEXT_BYTE_SIZE;
+                int length = 0;
+                ReadonlyBuffer<byte> splitPlainBytes;
+                if (split)
+                {
+                    length = Constants.MAX_TLS_PLAIN_TEXT_BYTE_SIZE;
+                    splitPlainBytes = buffer.Slice(0, length);
+                }
+                else
+                {
+                    length = buffer.Length;
+                    splitPlainBytes = buffer;
+                }
+                //每一层record都要添加seqnum
+                byte[] encryptFrameBytes = Context.EncryptMessage(contentType, splitPlainBytes);
+                ApplicationDataProtocol applicationDataProtocol = new ApplicationDataProtocol();
+                applicationDataProtocol.HandShakeData = new ReadonlyBuffer<byte>(encryptFrameBytes);
+                RecordLayer recordLayer = this.CreateRecordLayer();
+                recordLayer.AddApplicationDataProtocol(applicationDataProtocol);
+                recordLayers.Add(recordLayer);
+                buffer.Position(length);
+            } while (buffer.Length > 0);
+            return recordLayers;
+        }
         public byte[] EncryptFrame(ContentType contentType, [NotNull] byte[] plainBytes)
         {
             //计算需要拆分包的个数
@@ -415,7 +598,7 @@ namespace NetMQ.Security.TLS12
             NetMQFrame contentTypeFrame = cipherMessage.Pop();
             NetMQFrame protocolVersionFrame = cipherMessage.Pop();
 
-            if (!protocolVersionFrame.ToByteArray().SequenceEqual(ProtocolVersion))
+            if ((ProtocolVersion)(protocolVersionFrame.ToByteArray()) != ProtocolVersion)
             {
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidProtocolVersion, "Wrong protocol version");
             }
@@ -427,7 +610,7 @@ namespace NetMQ.Security.TLS12
                 throw new NetMQSecurityException(NetMQSecurityErrorCode.InvalidContentType, "Not an alert message or application data message");
             }
             RemoveLength(cipherMessage);
-            return RecordLayer.DecryptMessage(contentType, cipherMessage);
+            return Context.DecryptMessage(contentType, cipherMessage);
         }
 
         /// <summary>
@@ -451,9 +634,21 @@ namespace NetMQ.Security.TLS12
             {
                 throw new ArgumentNullException(nameof(cipherBytes));
             }
-            return RecordLayer.DecryptMessage(ContentType.ApplicationData, cipherBytes);
+            return Context.DecryptMessage(ContentType.ApplicationData, cipherBytes);
         }
+        public ReadonlyBuffer<byte> DecryptApplicationMessage([NotNull] ReadonlyByteBuffer cipherBytes)
+        {
+            if (!SecureChannelReady)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.SecureChannelNotReady, "Cannot decrypt messages until the secure channel is ready");
+            }
 
+            if (cipherBytes == null)
+            {
+                throw new ArgumentNullException(nameof(cipherBytes));
+            }
+            return Context.DecryptMessage(ContentType.ApplicationData, cipherBytes);
+        }
         public void UpdateSessionId(byte[] sessionId)
         {
             SessionId = sessionId;
@@ -475,7 +670,7 @@ namespace NetMQ.Security.TLS12
         {
             NetMQMessage message = new NetMQMessage();
             message.Append(new[] { (byte)ContentType.Alert });
-            message.Append(ProtocolVersion.ToArray());
+            message.Append(ProtocolVersion);
 
             message.Append(new byte[2] { 0, 2 });
 
@@ -513,10 +708,10 @@ namespace NetMQ.Security.TLS12
                 m_handshakeLayer = null;
             }
 
-            if (RecordLayer != null)
+            if (Context != null)
             {
-                RecordLayer.Dispose();
-                RecordLayer = null;
+                Context.Dispose();
+                Context = null;
             }
         }
 
@@ -545,6 +740,60 @@ namespace NetMQ.Security.TLS12
             } while (offset < bytes.Length);
             return sslMessages.Count > 0;
         }
+        /// <summary>
+        /// 将数据解析成recordLayer
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="recordLayers"></param>
+        /// <returns>握手是否完成</returns>
+        public bool ResolveRecordLayer(ReadonlyBuffer<byte> buffer, List<RecordLayer> recordLayers)
+        {
+            bool result = false;
+            if (SecureChannelReady)
+            {
+                do
+                {
+                    int offset = 0;
+                    List<RecordLayer> temp = new List<RecordLayer>();
+                    RecordLayer recordLayer;
+                    if (DecoderFactory.Decode(buffer, this.ChangeSuiteChangeArrived, out offset, out recordLayer))
+                    {
+                        //解析成功 处理
+                        if (recordLayer!=null) recordLayers.Add(recordLayer);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                    buffer.Position(offset);
+                } while (buffer.Length > 0);
+                return true;
+            }
+            do
+            {
+                int offset = 0;
+                List <RecordLayer> temp = new List<RecordLayer>();
+                RecordLayer recordLayer;
+                if (DecoderFactory.Decode(buffer, this.ChangeSuiteChangeArrived, out offset, out recordLayer))
+                {
+                    //解析成功 处理
+                    if (recordLayer != null)
+                    {
+                        result = ProcessMessage(recordLayer, temp);
+                        if (temp.Count > 0) recordLayers.AddRange(temp);
+                    }
+                }
+                else
+                {
+                    break;
+                }
+                buffer.Position(offset);
+            } while (buffer.Length > 0 );
+            return result;
+
+        }
+
 
         #endregion
     }

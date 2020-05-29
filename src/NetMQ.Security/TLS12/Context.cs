@@ -14,9 +14,10 @@ namespace NetMQ.Security.TLS12
     /// <remarks>
     /// See http://technet.microsoft.com/en-us/library/cc781476(v=ws.10).aspx
     /// </remarks>
-    internal class RecordLayer : IDisposable
+    internal class Context : IDisposable
     {
         private const string KeyExpansion = "key expansion";
+        private RandomNumberGenerator m_rng = new RNGCryptoServiceProvider();
 
         public const int WindowSize = 1024;
 
@@ -34,7 +35,7 @@ namespace NetMQ.Security.TLS12
         /// A sequence number is incremented after each record: specifically, the first record transmitted under a particular connection state MUST use sequence number 0.
         /// The master_secret is hashed with the ClientHello.random and ServerHello.random to produce unique data encryption keys and MAC secrets for each connection.
         /// Outgoing data is protected with a MAC before transmission.
-        /// To prevent message replay or modification attacks, the MAC is computed from the MAC key, the sequence number, the message length, the
+        /// To prevent message replay or modification attacks, the MAC is computed from the MAC key, the sequence number, the mF:\Study\Git\NetMQ.Security\src\NetMQ.Security\TLS12\RecordLayer.csessage length, the
         /// message contents, and two fixed character strings.  
         /// The message type field is necessary to ensure that messages intended for one TLS record layer client are not redirected to another.
         /// The sequence number ensures that attempts to delete or reorder messages will be detected.
@@ -48,7 +49,7 @@ namespace NetMQ.Security.TLS12
         private object m_readLock = new object();
         private object m_writeLock = new object();
 
-        private byte[] m_SubProtocolVersion;
+        private byte[] ProtocolVersion;
         private ulong m_leftWindow = 0;
         private ulong m_rightWindow = WindowSize - 1;
         private readonly bool[] m_windowMap = new bool[WindowSize];
@@ -59,7 +60,7 @@ namespace NetMQ.Security.TLS12
         /// Create a new RecordLayer object with the given protocol-version.
         /// </summary>
         /// <param name="protocolVersion">a 2-element byte-array that denotes the version of this protocol</param>
-        public RecordLayer()
+        public Context()
         {
             SecurityParameters = new SecurityParameters
             {
@@ -220,7 +221,7 @@ namespace NetMQ.Security.TLS12
                 byte[] seqNumBytes = BitConverter.GetBytes(seqNum);
                 //在密码学的领域里，初始向量（英语：initialization vector，缩写为IV），或译初向量，又称初始变量（starting variable，缩写为SV）[1]，是一个固定长度的输入值。一般的使用上会要求它是随机数或拟随机数（pseudorandom）。使用随机数产生的初始向量才能达到语义安全（消息验证码也可能用到初始向量），并让攻击者难以对原文一致且使用同一把密钥生成的密文进行破解。在区块加密中，使用了初始向量的加密模式被称为区块加密模式。 
                 //有些密码运算只要求初始向量不要重复，并只要求它用是内部求出的随机数值（这类随机数实际上不够乱）。在这类应用下，初始向量通常被称为nonce（临时使用的数值），是可控制的（stateful）而不是随机数。这种作法是因为初始向量不会被寄送到密文的接收方，而是收发两方透过事前约定的机制自行计算出对应的初始向量（不过，实现上还是经常会把nonce送过去以便检查消息的遗漏）。计数器模式中使用序列的方式来作为初始向量，它就是一种可控制之初始向量的加密模式。 
-                byte[] iv = GenerateIV(encryptor, seqNumBytes);
+                byte[] iv = GenerateIV(encryptor);
 
 #if DEBUG
                 Debug.WriteLine("[iv]:" + BitConverter.ToString(iv));
@@ -244,18 +245,12 @@ namespace NetMQ.Security.TLS12
         /// <param name="encryptor">the ICryptoTransform to use to do the encryption</param>
         /// <param name="seqNumBytes">a byte-array that is the sequence-number</param>
         /// <returns>a byte-array that comprises the Initialization Vector (IV)</returns>
-        private byte[] GenerateIV(ICryptoTransform encryptor, byte[] seqNumBytes)
+        private byte[] GenerateIV(ICryptoTransform encryptor)
         {
             // generating an IV by encrypting the sequence number with the random IV and encrypting symmetric key
             byte[] iv = new byte[SecurityParameters.RecordIVLength];
-            Buffer.BlockCopy(seqNumBytes, 0, iv, 0, 8);
-
-            byte padding = (byte)((encryptor.OutputBlockSize - (9 % encryptor.OutputBlockSize)) % encryptor.OutputBlockSize);
-            for (int i = 8; i < iv.Length; i++)
-            {
-                iv[i] = padding;
-            }
-
+            //初始化IV必须随机生成
+            m_rng.GetBytes(iv);
             // Compute the hash value for the region of the input byte-array (iv), starting at index 0,
             // and copy the resulting hash value back into the same byte-array.
             encryptor.TransformBlock(iv, 0, iv.Length, iv, 0);
@@ -295,7 +290,7 @@ namespace NetMQ.Security.TLS12
             //    TLSPlaintext;
             if (SecurityParameters.MACAlgorithm != MACAlgorithm.Null)
             {
-                byte[] versionAndType = new[] { (byte)contentType, m_SubProtocolVersion[0], m_SubProtocolVersion[1] };
+                byte[] versionAndType = new[] { (byte)contentType, ProtocolVersion[0], ProtocolVersion[1] };
                 byte[] seqNumBytes = BitConverter.GetBytes(seqNum).Reverse().ToArray();//大端
                 byte[] messageSize = BitConverter.GetBytes((ushort)plainBytes.Length).Take(2).Reverse().ToArray();//长度2字节
 
@@ -395,6 +390,39 @@ namespace NetMQ.Security.TLS12
             }
         }
 
+        public ReadonlyBuffer<byte> DecryptMessage(ContentType contentType, ReadonlyBuffer<byte> cipherMessage)
+        {
+            if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.Null &&
+              SecurityParameters.MACAlgorithm == MACAlgorithm.Null)
+            {
+                return cipherMessage;
+            }
+            //从第一个加密块开始计算
+            ulong seqNum = GetAndIncreaseReadSequneceNumber();
+            if (cipherMessage.Length < SecurityParameters.RecordIVLength)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.EncryptedFrameInvalidLength, "IV size not enough");
+            }
+            byte[] ivBytes = new byte[SecurityParameters.RecordIVLength];
+            Buffer.BlockCopy(cipherMessage, 0, ivBytes, 0, ivBytes.Length);
+            byte[] cipherBytes = new byte[cipherMessage.Length - SecurityParameters.RecordIVLength];
+            Buffer.BlockCopy(cipherMessage, ivBytes.Length, cipherBytes, 0, cipherBytes.Length);
+
+
+#if DEBUG
+            Debug.WriteLine("[iv]:" + BitConverter.ToString(ivBytes));
+#endif
+            using (var decryptor = m_decryptionBulkAlgorithm.CreateDecryptor(m_decryptionBulkAlgorithm.Key, ivBytes))
+            {
+                byte[] padding;
+                byte[] data;
+                byte[] mac;
+
+                DecryptBytes(decryptor, cipherBytes, out data, out mac, out padding);
+                ValidateBytes(contentType, seqNum, data, mac, padding);
+                return new ReadonlyBuffer<byte>(data);
+            }
+        }
         /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.EncryptedFrameInvalidLength"/>: The block size must be valid.</exception>
         private void DecryptBytes(ICryptoTransform decryptor, byte[] cipherBytes,
           out byte[] plainBytes, out byte[] mac, out byte[] padding)
@@ -434,6 +462,8 @@ namespace NetMQ.Security.TLS12
                     // somebody tamper the message, we don't want throw the exception yet because
                     // of timing issue, we need to throw the exception after the mac check,
                     // therefore we will change the padding size to the size of the block
+                    //Canvel et al. [CBCTIME] have demonstrated a timing attack on CBC padding based on the time required to compute the MAC.
+                    //In order to defend against this attack, implementations MUST ensure that record processing time is essentially the same whether or not the padding is correct.
                     paddingSize = decryptor.InputBlockSize;
                 }
 
@@ -481,10 +511,9 @@ namespace NetMQ.Security.TLS12
         {
             if (SecurityParameters.MACAlgorithm != MACAlgorithm.Null)
             {
-                byte[] typeAndVersion = new[] { (byte)contentType, m_SubProtocolVersion[0], m_SubProtocolVersion[1] };
+                byte[] typeAndVersion = new[] { (byte)contentType, ProtocolVersion[0], ProtocolVersion[1] };
                 byte[] seqNumBytes = BitConverter.GetBytes(seqNum).Reverse().ToArray();
                 byte[] messageSize = BitConverter.GetBytes(plainBytes.Length).Take(2).Reverse().ToArray();
-                //byte[] messageSize = plainBytes.LengthToBytes(2);
                 m_decryptionHMAC.Initialize();
                 m_decryptionHMAC.TransformBlock(seqNumBytes, 0, seqNumBytes.Length, seqNumBytes, 0);
                 m_decryptionHMAC.TransformBlock(typeAndVersion, 0, typeAndVersion.Length, typeAndVersion, 0);
@@ -556,9 +585,9 @@ namespace NetMQ.Security.TLS12
                 return false;
             }
         }
-        internal void SetSubProtocolVersion(byte[] subprotocolVersion)
+        internal void SetProtocolVersion(byte[] protocolVersion)
         {
-            m_SubProtocolVersion = subprotocolVersion;
+            ProtocolVersion = protocolVersion;
         }
 
         /// <summary>
