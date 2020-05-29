@@ -100,16 +100,13 @@ namespace NetMQ.Console
                             foreach (var message in sslMessages2)
                             {
                                 // decrypting the message
-                                byte[] plainMessage = secureChannel.DecryptApplicationMessage(message.RecordProtocols[0].HandShakeData);
+                                byte[] plainMessage = secureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);
                                 System.Console.WriteLine(Encoding.GetEncoding("GBK").GetString(plainMessage));
                                 ReadonlyBuffer<byte> sendBuffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("00000021<Root>TestResp</Root>"));
-                                var recordLayers = secureChannel.EncryptApplicationData(sendBuffer);
+                                var recordLayer = secureChannel.EncryptApplicationData(sendBuffer);
 
-                                foreach (var recordLayer in recordLayers)
-                                {
-                                    socket.SendMoreFrame(socket.Options.Identity);
-                                    socket.SendFrame(recordLayer);
-                                }
+                                socket.SendMoreFrame(socket.Options.Identity);
+                                socket.SendFrame(recordLayer);
                             }
                         }
                         if (buffer.Length == 0)

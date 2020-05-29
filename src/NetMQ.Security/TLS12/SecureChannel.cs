@@ -437,7 +437,28 @@ namespace NetMQ.Security.TLS12
         /// <returns>a new NetMQMessage that is encrypted</returns>
         /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
         /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
-        public List<RecordLayer> EncryptApplicationData([NotNull] ReadonlyBuffer<byte> buffer)
+        public byte[] EncryptAlert([NotNull] AlertProtocol alert)
+        {
+            if (!SecureChannelReady)
+            {
+                throw new NetMQSecurityException(NetMQSecurityErrorCode.SecureChannelNotReady, "Cannot encrypt messages until the secure channel is ready");
+            }
+
+            if (alert == null)
+            {
+                throw new ArgumentNullException(nameof(alert));
+            }
+
+            return InternalEncryptAndWrapAlertMessage(ContentType.Alert, new ReadonlyBuffer<byte>(alert));
+        }
+        /// <summary>
+        /// Encrypt the given NetMQMessage, wrapping it's content as application-data and prefixing it with the encryption protocol.
+        /// </summary>
+        /// <param name="plainMessage">The unencrypted form of the message to be encrypted.</param>
+        /// <returns>a new NetMQMessage that is encrypted</returns>
+        /// <exception cref="ArgumentNullException">plainMessage must not be null.</exception>
+        /// <exception cref="NetMQSecurityException">NetMQSecurityErrorCode.SecureChannelNotReady: The secure channel must be ready.</exception>
+        public byte[] EncryptApplicationData([NotNull] ReadonlyBuffer<byte> buffer)
         {
             if (!SecureChannelReady)
             {
@@ -449,7 +470,21 @@ namespace NetMQ.Security.TLS12
                 throw new ArgumentNullException(nameof(buffer));
             }
 
-            return InternalEncryptAndWrapMessage(ContentType.ApplicationData, buffer);
+            return ToBytes(InternalEncryptAndWrapApplicationData(ContentType.ApplicationData, buffer));
+        }
+        public static byte[] ToBytes(List<RecordLayer> message)
+        {
+            if (message.Count == 1) return message.First();
+            //TODO多个需要优化性能。
+            byte[] data = new byte[message.Sum(f => ((byte[])f).Length)];
+            int offset = 0;
+            foreach (var frame in message)
+            {
+                byte[] d = frame;
+                Buffer.BlockCopy(d, 0, data, offset, d.Length);
+                offset += d.Length;
+            }
+            return data;
         }
         /// <summary>
         /// 包装成RecordLayer
@@ -502,7 +537,16 @@ namespace NetMQ.Security.TLS12
             return recordLayerBytes;
         }
 
-        public List<RecordLayer> InternalEncryptAndWrapMessage(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
+        internal RecordLayer InternalEncryptAndWrapAlertMessage(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
+        {
+            byte[] encryptFrameBytes = Context.EncryptMessage(contentType, buffer);
+            AlertProtocol applicationDataProtocol = new AlertProtocol(true);
+            applicationDataProtocol.HandShakeData = new ReadonlyBuffer<byte>(encryptFrameBytes);
+            RecordLayer recordLayer = this.CreateRecordLayer();
+            recordLayer.AddAlertProtocol(applicationDataProtocol);
+            return recordLayer;
+        }
+        internal List<RecordLayer> InternalEncryptAndWrapApplicationData(ContentType contentType, [NotNull] ReadonlyBuffer<byte> buffer)
         {
             List<RecordLayer> recordLayers = new List<RecordLayer>();
             //计算需要拆分包的个数
@@ -655,7 +699,7 @@ namespace NetMQ.Security.TLS12
         /// </summary>
         /// <param name="cipherBytes"></param>
         /// <returns></returns>
-        public byte[] DecryptApplicationMessage([NotNull] ReadonlyBuffer<byte> cipherBytes)
+        public byte[] DecryptApplicationData([NotNull] ReadonlyBuffer<byte> cipherBytes)
         {
             return DecryptApplicationMessage((byte[])cipherBytes);
         }
@@ -695,7 +739,7 @@ namespace NetMQ.Security.TLS12
             AlertProtocol alertProtocol = new AlertProtocol();
             alertProtocol.Level = alertLevel;
             alertProtocol.Description = alertDescription;
-            RecordLayer recordLayer = new RecordLayer();
+            RecordLayer recordLayer = CreateRecordLayer();
             recordLayer.AddAlertProtocol(alertProtocol);
             return recordLayer;
         }
@@ -816,17 +860,6 @@ namespace NetMQ.Security.TLS12
             } while (buffer.Length > 0 );
             return result;
 
-        }
-
-
-        public byte[] EncryptApplicationBytes(ReadonlyBuffer<byte> plainMessage)
-        {
-            throw new NotImplementedException();
-        }
-
-        public byte[] DecryptApplicationBytes(ReadonlyBuffer<byte> cipherMessage)
-        {
-            throw new NotImplementedException();
         }
 
 

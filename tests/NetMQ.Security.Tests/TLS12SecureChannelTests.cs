@@ -431,8 +431,7 @@ namespace NetMQ.Security.Tests
             for (int i = 0; i < 100; i++)
             {
                 ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(data);
-                List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
-                var combineBytes =ToBytes(cipherMessage);
+                var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
                 List<RecordLayer> sslMessages = new List<RecordLayer>();
 
                 ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
@@ -444,7 +443,7 @@ namespace NetMQ.Security.Tests
                 List<RecordLayer> plainMessageList = new List<RecordLayer>();
                 foreach (var message in sslMessages)
                 {
-                    byte[] d = m_clientSecureChannel.DecryptApplicationMessage(message.RecordProtocols[0].HandShakeData);
+                    byte[] d = m_clientSecureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);
                     Assert.AreEqual(data, d);
                 }
             }
@@ -465,8 +464,7 @@ namespace NetMQ.Security.Tests
         public void ClientToServer()
         {
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("HelloWorld"));
-            List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
-            var combineBytes = ToBytes(cipherMessage);
+            var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
             List<RecordLayer> sslMessages = new List<RecordLayer>();
 
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
@@ -478,7 +476,7 @@ namespace NetMQ.Security.Tests
             Assert.AreEqual(buffer1.Length, 0);
             Assert.AreEqual(sslMessages.Count, 1);
 
-            byte[] d = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0].RecordProtocols[0].HandShakeData);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "HelloWorld");
         }
 
@@ -487,28 +485,28 @@ namespace NetMQ.Security.Tests
         {
             // server to client
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Hello"));
-            List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
+            var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
             List<RecordLayer> sslMessages = new List<RecordLayer>();
 
-            ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(cipherMessage[0]);
+            ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
 
             bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
 
             Assert.AreEqual(sslMessages.Count, 1);
 
-            byte[] d = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0].RecordProtocols[0].HandShakeData);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Hello");
 
             // client to server
             buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Reply"));
-            cipherMessage = m_clientSecureChannel.EncryptApplicationData(buffer);
-            buffer1 = new ReadonlyBuffer<byte>(cipherMessage[0]);
+            combineBytes = m_clientSecureChannel.EncryptApplicationData(buffer);
+            buffer1 = new ReadonlyBuffer<byte>(combineBytes);
             sslMessages.Clear();
             result = m_serverSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
 
             Assert.AreEqual(sslMessages.Count, 1);
 
-            d = m_serverSecureChannel.DecryptApplicationMessage(sslMessages[0].RecordProtocols[0].HandShakeData);
+            d = m_serverSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Reply");
         }
 
@@ -517,16 +515,16 @@ namespace NetMQ.Security.Tests
         {
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(EmptyArray<byte>.Instance);
 
-            List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
+            var cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
 
             List<RecordLayer> sslMessages = new List<RecordLayer>();
 
 
-            ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(cipherMessage[0]);
+            ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(cipherMessage);
             bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
 
             Assert.AreEqual(sslMessages.Count, 1);
-            byte[] d = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0].RecordProtocols[0].HandShakeData);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
 
             Assert.AreEqual(d.Length, 0);
         }
@@ -583,8 +581,7 @@ namespace NetMQ.Security.Tests
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(new byte[length]);
             new Random().NextBytes(buffer._Data);
 
-            List<RecordLayer> cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
-            var combineBytes = ToBytes(cipherMessage);
+            var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
             List<RecordLayer> sslMessages = new List<RecordLayer>();
 
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
@@ -595,7 +592,7 @@ namespace NetMQ.Security.Tests
             int sum = 0;
             foreach (var message in sslMessages)
             {
-                byte[] d = m_clientSecureChannel.DecryptApplicationMessage(message.RecordProtocols[0].HandShakeData);
+                byte[] d = m_clientSecureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);
                 sum += d.Length;
             }
             Assert.AreEqual(sum, buffer.Limit);
