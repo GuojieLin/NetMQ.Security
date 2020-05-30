@@ -298,6 +298,9 @@ namespace NetMQ.Security.TLS12
                 if (contentType == ContentType.Alert)
                 {
                     ProcessAlert(incomingMessage.RecordProtocols[0]);
+                    incomingMessage.ProtocolVersion = this.ProtocolVersion;
+                    //warn不关闭连接,但是要给外部处理
+                    outgoingMesssages.Add(incomingMessage);
                 }
             }
             else
