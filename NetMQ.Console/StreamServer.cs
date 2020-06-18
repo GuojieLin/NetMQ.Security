@@ -79,10 +79,10 @@ namespace NetMQ.Console
                         }
                     } while (!done);
                     SendMessages(socket, handshakeLayers);
-                    List<RecordLayer> recordLayers = new List<RecordLayer>();
                     cache = null;
                     while (true)
                     {
+                        List<RecordLayer> recordLayers = new List<RecordLayer>();
                         // this message is now encrypted
                         NetMQMessage cipherMessage = socket.ReceiveMultipartMessage();
                         if (cache == null || cache.Length <= 0)
@@ -94,10 +94,9 @@ namespace NetMQ.Console
                             cache = CombineV2(cache, cipherMessage.Last.Buffer);
                         }
                         ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(cache);
-                        List<RecordLayer> sslMessages2 = new List<RecordLayer>();
-                        if (secureChannel.ResolveRecordLayer(buffer, recordLayers, handshakeLayers))
+                        if (secureChannel.ResolveRecordLayer(buffer, recordLayers, null))
                         {
-                            foreach (var message in sslMessages2)
+                            foreach (var message in recordLayers)
                             {
                                 // decrypting the message
                                 byte[] plainMessage = secureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);

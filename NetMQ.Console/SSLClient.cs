@@ -90,9 +90,8 @@ namespace NetMQ.Console
                         // this message is now encrypted
                         NetMQMessage cipherMessage = socket.ReceiveMultipartMessage();
                         List<RecordLayer> recordLayers = new List<RecordLayer>();
-                        bool result = secureChannel.ResolveRecordLayer(new ReadonlyBuffer<byte>(cipherMessage.Last.Buffer), recordLayers, outRecordLayers);
+                        bool result = secureChannel.ResolveRecordLayer(new ReadonlyBuffer<byte>(cipherMessage.Last.Buffer), recordLayers, null);
                         Debug.Assert(result);
-                        Debug.Assert(outRecordLayers == null);
                         Debug.Assert(recordLayers != null);
                         foreach (var message in recordLayers)
                         {

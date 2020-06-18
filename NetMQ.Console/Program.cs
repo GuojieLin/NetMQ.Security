@@ -46,8 +46,8 @@ namespace NetMQ.Console
             //Client client = new Client(configuration);
             //Action action2 = client.Do;
             //action2.BeginInvoke(ac => { action2.EndInvoke(ac); }, null);
-            StreamServer server = new StreamServer(configuration);
-            //SSLClient server = new SSLClient(configuration);
+            //StreamServer server = new StreamServer(configuration);
+            SSLClient server = new SSLClient(configuration);
             Action action1 = server.Do2;
             action1.BeginInvoke(ac => { action1.EndInvoke(ac); }, null);
             System.Console.ReadKey();
