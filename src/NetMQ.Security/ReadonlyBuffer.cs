@@ -73,6 +73,13 @@ namespace NetMQ.Security
             //data2:          2   3   4    5
             return new ReadonlyBuffer<TEntity>(this, offset + this.Offset, this.Length - offset);
         }
+
+        /// <summary>
+        /// 缓冲区切片，无需复制。
+        /// </summary>
+        /// <param name="offset"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
         public ReadonlyBuffer<TEntity> Slice(int offset, int length)
         {
             CheckIndexOutOfRange(offset + this.Offset + length - 1);

@@ -16,6 +16,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="V3_3SecureChannelTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="bin\Debug\net451\server.pfx" />
     <None Include="bin\Release\net451\server.pfx" />
   </ItemGroup>

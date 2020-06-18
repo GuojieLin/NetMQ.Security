@@ -1,4 +1,5 @@
 ﻿using NetMQ.Security.TLS12;
+using NetMQ.Security.TLS12.Layer;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,12 +9,12 @@ namespace NetMQ.Security
 {
     public class AlertException : Exception
     {
-        public NetMQMessage AlertMessage { get; private set; }
+        public AlertProtocol AlertProtocol { get; private set; }
 
-        public AlertException(NetMQMessage message , Exception innerException) 
+        public AlertException(AlertProtocol alert, Exception innerException) 
             : base(innerException.Message, innerException)
         {
-            AlertMessage = message;
+            AlertProtocol = alert;
         }
     }
 }

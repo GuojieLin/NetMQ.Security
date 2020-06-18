@@ -53,5 +53,13 @@ namespace NetMQ.Console
             System.Console.ReadKey();
             RSADe.Do2("a8804a95f3bb38e864265e1f1eff7d434fb4197e78bc175f7fdb29e4b68d9b62d7207b87837b40932c26d3cfb299ef68c337012c09acc34d568bce03a0ef1f9be5c8ab492cf86d9d7c8be1868edde1a657bf5bfb088cd55535cc22c05ab34a61857f2c4e513f3629fb4848f627e295a81012fc25b5a6d98fe8457909413def71");
         }
+        public static byte[] CombineV2(byte[] bytes1, byte[] bytes2)
+        {
+            byte[] c = new byte[bytes1.Length + bytes2.Length];
+
+            Buffer.BlockCopy(bytes1, 0, c, 0, bytes1.Length);
+            Buffer.BlockCopy(bytes2, 0, c, bytes1.Length, bytes2.Length);
+            return c;
+        }
     }
 }

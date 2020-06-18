@@ -49,13 +49,13 @@ namespace NetMQ.Console
                     System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server.pfx"), "1234");
                     secureChannel.Certificate = certificate;
 
-                    List<RecordLayer> outgoingMessages = new List<RecordLayer>();
+                    List<RecordLayer> handshakeLayers = new List<RecordLayer>();
                     bool done = false;
                     // waiting for message from client
                     byte[] cache = null;
                     do
                     {
-                        outgoingMessages.Clear();
+                        handshakeLayers.Clear();
                         NetMQMessage incomingMessage = socket.ReceiveMultipartMessage();
                         if (cache == null || cache.Length <= 0)
                         {
@@ -67,8 +67,8 @@ namespace NetMQ.Console
                         }
                         ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(cache);
                         //SplitInMessage
-                        done = secureChannel.ResolveRecordLayer(buffer, outgoingMessages);
-                        SendMessages(socket, outgoingMessages);
+                        done = secureChannel.ResolveRecordLayer(buffer, null, handshakeLayers);
+                        SendMessages(socket, handshakeLayers);
                         if (buffer.Length == 0)
                         {
                             cache = null;
@@ -78,8 +78,8 @@ namespace NetMQ.Console
                             cache = buffer;
                         }
                     } while (!done);
-                    SendMessages(socket, outgoingMessages);
-                    outgoingMessages.Clear();
+                    SendMessages(socket, handshakeLayers);
+                    List<RecordLayer> recordLayers = new List<RecordLayer>();
                     cache = null;
                     while (true)
                     {
@@ -95,7 +95,7 @@ namespace NetMQ.Console
                         }
                         ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(cache);
                         List<RecordLayer> sslMessages2 = new List<RecordLayer>();
-                        if (secureChannel.ResolveRecordLayer(buffer, sslMessages2))
+                        if (secureChannel.ResolveRecordLayer(buffer, recordLayers, handshakeLayers))
                         {
                             foreach (var message in sslMessages2)
                             {
@@ -123,108 +123,6 @@ namespace NetMQ.Console
             }
 
         }
-        public void Do()
-        {
-            // we are using dealer here, but we can use router as well, we just have to manager
-            // SecureChannel for each identity
-            using (var socket = new StreamSocket())
-            {
-                socket.Bind("tcp://*:9696");
-
-                using (SecureChannel secureChannel = SecureChannel.CreateServerSecureChannel(m_configuration))
-                {
-
-                    // we need to set X509Certificate with a private key for the server
-                    X509Certificate2 certificate = new X509Certificate2(
-                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"server.pfx"),"1234");
-                    secureChannel.Certificate = certificate;
-
-                    List<NetMQMessage> outgoingMessages = new List<NetMQMessage>();
-                    bool done = false;
-                    // waiting for message from client
-                    byte[] cache = null;
-                    do
-                    {
-                        outgoingMessages.Clear();
-                        NetMQMessage incomingMessage = socket.ReceiveMultipartMessage();
-                        if (cache == null || cache.Length <= 0)
-                        {
-                            cache = incomingMessage.Last.Buffer;
-                        }
-                        else
-                        {
-                            cache = CombineV2(cache, incomingMessage.Last.Buffer);
-                        }
-                        //SplitInMessage
-                        int offset;
-                        List<NetMQMessage> sslMessages;
-                        secureChannel.ResolveRecordLayer(cache, out offset, out sslMessages);
-                        if(cache.Length == offset)
-                        {
-                            cache = null;
-                        }
-                        else if (cache.Length > offset)
-                        {
-                            byte[] temp = new byte[cache.Length - offset];
-                            Buffer.BlockCopy(cache, offset, temp, 0, temp.Length);
-                            cache = temp;
-                        }
-                        foreach (var sslMessage in sslMessages)
-                        {
-                            // calling ProcessMessage until ProcessMessage return true 
-                            // and the SecureChannel is ready to encrypt and decrypt messages
-                            done = secureChannel.ProcessMessage(sslMessage, outgoingMessages);
-                            SendMessages(socket,outgoingMessages);
-                        }
-                    } while (!done);
-                    SendMessages(socket, outgoingMessages);
-                    outgoingMessages.Clear();
-                    cache = null;
-                    while (true)
-                    {
-                        // this message is now encrypted
-                        NetMQMessage cipherMessage = socket.ReceiveMultipartMessage();
-                        if (cache == null || cache.Length <= 0)
-                        {
-                            cache = cipherMessage.Last.Buffer;
-                        }
-                        else
-                        {
-                            cache = CombineV2(cache, cipherMessage.Last.Buffer);
-                        }
-                        int offset2;
-                        List<NetMQMessage> sslMessages2;
-                        secureChannel.ResolveRecordLayer(cache, out offset2, out sslMessages2);
-                        if (cache.Length == offset2)
-                        {
-                            cache = null;
-                        }
-                        else if(offset2 == 0)
-                        {
-                            //长度不够，等下一次读取在解析
-                            continue;
-                        }
-                        else if (cache.Length > offset2)
-                        {
-                            byte[] temp = new byte[cache.Length - offset2];
-                            Buffer.BlockCopy(cache, offset2, temp, 0, temp.Length);
-                            cache = temp;
-                        }
-                        if (sslMessages2.Count <= 0) continue;
-                        // decrypting the message
-                        NetMQMessage plainMessage = secureChannel.DecryptApplicationMessage(sslMessages2[0]);
-                        System.Console.WriteLine(plainMessage.First.ConvertToString());
-                        plainMessage = new NetMQMessage();
-                        plainMessage.Append("00000021<Root>TestResp</Root>");
-
-                        socket.SendMoreFrame(socket.Options.Identity);
-                        socket.SendFrame(secureChannel.EncryptApplicationMessage(plainMessage)[0].Buffer);
-                    }
-                    // encrypting the message and sending it over the socket
-                }
-            }
-
-        }
 
         public static void SendMessages(StreamSocket socket, List<NetMQMessage> outgoingMessages)
         {
@@ -244,7 +142,7 @@ namespace NetMQ.Console
                         handsharkbytes = frame.Buffer;
                         continue;
                     }
-                    handsharkbytes = Server.CombineV2(handsharkbytes, frame.Buffer);
+                    handsharkbytes = Program.CombineV2(handsharkbytes, frame.Buffer);
                 }
             }
             outgoingMessages.Clear();

@@ -10,6 +10,7 @@ using NetMQ.Security.Enums;
 using NetMQ.Security.Extensions;
 using NetMQ.Security.Layer;
 using NetMQ.Security.TLS12;
+using NetMQ.Security.TLS12.Layer;
 using NUnit.Framework;
 
 namespace NetMQ.Security.Tests
@@ -30,20 +31,20 @@ namespace NetMQ.Security.Tests
 
             m_clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
 
             bool serverComplete = false;
 
-            bool clientComplete = m_clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool clientComplete = m_clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
 
             while (!serverComplete || !clientComplete)
             {
                 if (!serverComplete)
                 {
-                    foreach (var message in clientOutgoingMessages)
+                    foreach (var message in outClientHandShakeLayers)
                     {
-                        serverComplete = m_serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+                        serverComplete = m_serverSecureChannel.ProcessMessage(message, outserverHandShakeLayers);
 
                         if (serverComplete)
                         {
@@ -51,14 +52,14 @@ namespace NetMQ.Security.Tests
                         }
                     }
 
-                    clientOutgoingMessages.Clear();
+                    outClientHandShakeLayers.Clear();
                 }
 
                 if (!clientComplete)
                 {
-                    foreach (var message in serverOutgoingMessages)
+                    foreach (var message in outserverHandShakeLayers)
                     {
-                        clientComplete = m_clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+                        clientComplete = m_clientSecureChannel.ProcessMessage(message, outClientHandShakeLayers);
 
                         if (clientComplete)
                         {
@@ -66,7 +67,7 @@ namespace NetMQ.Security.Tests
                         }
                     }
 
-                    serverOutgoingMessages.Clear();
+                    outserverHandShakeLayers.Clear();
                 }
             }
         }
@@ -84,69 +85,6 @@ namespace NetMQ.Security.Tests
             Assert.IsTrue(m_clientSecureChannel.SecureChannelReady);
             Assert.IsTrue(m_serverSecureChannel.SecureChannelReady);
         }
-        [Test]
-        [TestCase(1)]
-        [TestCase(256)]
-        [TestCase(65536)]
-        [TestCase(16777216)]
-        public void LengthTest1(int length)
-        {
-            NetMQMessage message = new NetMQMessage();
-            message.Append(new byte[length]);
-            byte[] lengthBytes = new byte[4];
-            message.GetLength(lengthBytes);
-            int index=-1;
-            while (length > 0)
-            {
-                length = length / 256;
-                index++;
-            }
-            for (int i = 0; i < lengthBytes.Length; i++)
-            {
-                Assert.AreEqual(lengthBytes[i], i == 3 - index ? 1 : 0);
-            }
-        }
-        [Test]
-        [TestCase(1)]
-        [TestCase(256)]
-        [TestCase(65536)]
-        public void LengthTest2(int length)
-        {
-            NetMQMessage message = new NetMQMessage();
-            message.Append(new byte[length]);
-            byte[] lengthBytes = new byte[3];
-            message.GetLength(lengthBytes);
-            int index=-1;
-            while (length > 0)
-            {
-                length = length / 256;
-                index++;
-            }
-            for (int i = 0; i < lengthBytes.Length; i++)
-            {
-                Assert.AreEqual(lengthBytes[i], i == 2 - index ? 1 : 0);
-            }
-        }
-        [Test]
-        [TestCase(1)]
-        [TestCase(256)]
-        public void LengthTest3(int length)
-        {
-            NetMQMessage message = new NetMQMessage();
-            message.Append(new byte[length]);
-            byte[] lengthBytes = new byte[2];
-            message.GetLength(lengthBytes);
-            int index=-1;
-            while (length > 0)
-            {
-                length = length / 256;
-                index++;
-            }
-            for (int i = 0; i < lengthBytes.Length; i++)
-            {
-                Assert.AreEqual(lengthBytes[i], i == 1 - index ? 1 : 0);
-            }
-        }
 
         [Test]
         public void SessionRecoverTest()
@@ -159,21 +97,21 @@ namespace NetMQ.Security.Tests
 
             SecureChannel clientSecureChannel = SecureChannel.CreateClientSecureChannel(sessionId, configuration);
 
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
 
             bool serverComplete = false;
 
-            bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool clientComplete = clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
 
             Assert.IsTrue(clientSecureChannel.SessionId.SequenceEqual(sessionId));
             while (!serverComplete || !clientComplete)
             {
                 if (!serverComplete)
                 {
-                    foreach (var message in clientOutgoingMessages)
+                    foreach (var message in outClientHandShakeLayers)
                     {
-                        serverComplete = serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+                        serverComplete = serverSecureChannel.ProcessMessage(message, outserverHandShakeLayers);
 
                         Assert.IsTrue(serverSecureChannel.SessionId.SequenceEqual(sessionId));
                         if (serverComplete)
@@ -182,14 +120,14 @@ namespace NetMQ.Security.Tests
                         }
                     }
 
-                    clientOutgoingMessages.Clear();
                 }
 
+                outClientHandShakeLayers.Clear();
                 if (!clientComplete)
                 {
-                    foreach (var message in serverOutgoingMessages)
+                    foreach (var message in outserverHandShakeLayers)
                     {
-                        clientComplete = clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+                        clientComplete = clientSecureChannel.ProcessMessage(message, outClientHandShakeLayers);
 
                         Assert.IsTrue(clientSecureChannel.SessionId.SequenceEqual(sessionId));
                         if (clientComplete)
@@ -197,8 +135,8 @@ namespace NetMQ.Security.Tests
                             break;
                         }
                     }
-                    serverOutgoingMessages.Clear();
                 }
+                outserverHandShakeLayers.Clear();
             }
             clientSecureChannel.Dispose();
             serverSecureChannel.Dispose();
@@ -214,13 +152,14 @@ namespace NetMQ.Security.Tests
             serverSecureChannel.Certificate = certificate;
 
             SecureChannel clientSecureChannel = SecureChannel.CreateClientSecureChannel(sessionId, configuration);
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
-            bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
+
+            bool clientComplete = clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
             bool serverComplete = false;
-            foreach (var message in clientOutgoingMessages)
+            foreach (var message in outClientHandShakeLayers)
             {
-                serverComplete = serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+                serverComplete = serverSecureChannel.ProcessMessage(message, outserverHandShakeLayers);
 
                 Assert.IsTrue(serverSecureChannel.SessionId.SequenceEqual(sessionId));
                 if (serverComplete)
@@ -228,33 +167,21 @@ namespace NetMQ.Security.Tests
                     break;
                 }
             }
-            var alertMessage = serverSecureChannel.Alert(AlertLevel.Warning, AlertDescription.DecryptError);
-            Assert.AreEqual(alertMessage.FrameCount, 5);
-            Assert.AreEqual(alertMessage.First.BufferSize, 1);
-            Assert.AreEqual((int)alertMessage.First.Buffer[0], 21);
-            Assert.AreEqual(alertMessage[3].BufferSize, 1);
-            Assert.AreEqual((AlertLevel)alertMessage[3].Buffer[0], AlertLevel.Warning);
-            Assert.AreEqual(alertMessage[4].BufferSize, 1);
-            Assert.AreEqual((AlertDescription)alertMessage[4].Buffer[0], AlertDescription.DecryptError);
+            var alertMessage = serverSecureChannel.CreateAlert(AlertLevel.Warning, AlertDescription.DecryptError);
+            AlertProtocol alert = alertMessage.RecordProtocols[0] as AlertProtocol;
+            Assert.IsNotNull(alert);
+            Assert.AreEqual(alert.Level, AlertLevel.Warning);
+            Assert.AreEqual(alert.Description, AlertDescription.DecryptError);
 
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            outClientHandShakeLayers.Clear();
+            bool result = clientSecureChannel.ResolveRecordLayer(new ReadonlyBuffer<byte>(alertMessage), recordLayers, outClientHandShakeLayers);
+            alertMessage = clientSecureChannel.CreateAlert(AlertLevel.Warning, AlertDescription.DecryptError);
 
-            byte[] combineBytes= new byte[0];
-            int sum = 0;
-            foreach (var frame in alertMessage)
-            {
-                combineBytes = combineBytes.Combine(frame.Buffer);
-                sum += frame.BufferSize;
-            }
-            Assert.AreEqual(sum, combineBytes.Length);
-            bool result = clientSecureChannel.ResolveRecordLayer(new ReadonlyBuffer<byte>(combineBytes), clientOutgoingMessages);
-            alertMessage = clientSecureChannel.Alert(AlertLevel.Warning, AlertDescription.DecryptError);
-            Assert.AreEqual(alertMessage.FrameCount, 5);
-            Assert.AreEqual(alertMessage.First.BufferSize, 1);
-            Assert.AreEqual((int)alertMessage.First.Buffer[0], 21);
-            Assert.AreEqual(alertMessage[3].BufferSize, 1);
-            Assert.AreEqual((AlertLevel)alertMessage[3].Buffer[0], AlertLevel.Warning);
-            Assert.AreEqual(alertMessage[4].BufferSize, 1);
-            Assert.AreEqual((AlertDescription)alertMessage[4].Buffer[0], AlertDescription.DecryptError);
+            alert = alertMessage.RecordProtocols[0] as AlertProtocol;
+            Assert.IsNotNull(alert);
+            Assert.AreEqual(alert.Level, AlertLevel.Warning);
+            Assert.AreEqual(alert.Description, AlertDescription.DecryptError);
             clientSecureChannel.Dispose();
             serverSecureChannel.Dispose();
         }
@@ -269,34 +196,34 @@ namespace NetMQ.Security.Tests
 
             SecureChannel clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
 
             bool serverComplete = false;
 
-            bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool clientComplete = clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
 
             while (!serverComplete || !clientComplete)
             {
                 if (!serverComplete)
                 {
-                    foreach (var message in clientOutgoingMessages)
+                    foreach (var message in outClientHandShakeLayers)
                     {
-                        serverComplete = serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+                        serverComplete = serverSecureChannel.ProcessMessage(message, outserverHandShakeLayers);
 
                         if (serverComplete)
                         {
                             break;
                         }
                     }
-                    clientOutgoingMessages.Clear();
+                    outClientHandShakeLayers.Clear();
                 }
 
                 if (!clientComplete)
                 {
-                    foreach (var message in serverOutgoingMessages)
+                    foreach (var message in outserverHandShakeLayers)
                     {
-                        clientComplete = clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+                        clientComplete = clientSecureChannel.ProcessMessage(message, outClientHandShakeLayers);
 
                         if (clientComplete)
                         {
@@ -304,7 +231,7 @@ namespace NetMQ.Security.Tests
                         }
                     }
 
-                    serverOutgoingMessages.Clear();
+                    outserverHandShakeLayers.Clear();
                 }
             }
             clientSecureChannel.Dispose();
@@ -321,37 +248,37 @@ namespace NetMQ.Security.Tests
 
             SecureChannel clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
             clientSecureChannel.AllowedCipherSuites = new[] { CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA };
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
 
 
             bool serverComplete = false;
 
-            bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool clientComplete = clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
 
             while (!serverComplete || !clientComplete)
             {
                 if (!serverComplete)
                 {
-                    foreach (var message in clientOutgoingMessages)
+                    foreach (var message in outClientHandShakeLayers)
                     {
                         ReadonlyBuffer<byte> data = new ReadonlyBuffer<byte>(message);
-                        serverComplete = serverSecureChannel.ResolveRecordLayer(data, serverOutgoingMessages);
+                        serverComplete = serverSecureChannel.ResolveRecordLayer(data, null, outserverHandShakeLayers);
                         Assert.AreEqual(data.Length, 0);
                         if (serverComplete)
                         {
                             break;
                         }
                     }
-                    clientOutgoingMessages.Clear();
+                    outClientHandShakeLayers.Clear();
                 }
 
                 if (!clientComplete)
                 {
-                    foreach (var message in serverOutgoingMessages)
+                    foreach (var message in outserverHandShakeLayers)
                     {
                         ReadonlyBuffer<byte> data = new ReadonlyBuffer<byte>(message);
-                        clientComplete = clientSecureChannel.ResolveRecordLayer(data, clientOutgoingMessages);
+                        clientComplete = clientSecureChannel.ResolveRecordLayer(data, null, outClientHandShakeLayers);
 
                         Assert.AreEqual(0, data.Length);
                         Assert.AreEqual(data.Length, 0);
@@ -361,7 +288,7 @@ namespace NetMQ.Security.Tests
                         }
                     }
 
-                    serverOutgoingMessages.Clear();
+                    outserverHandShakeLayers.Clear();
                 }
             }
             clientSecureChannel.Dispose();
@@ -378,46 +305,46 @@ namespace NetMQ.Security.Tests
 
             SecureChannel clientSecureChannel = SecureChannel.CreateClientSecureChannel(null, configuration);
 
-            List<RecordLayer> clientOutgoingMessages = new List<RecordLayer>();
-            List<RecordLayer> serverOutgoingMessages = new List<RecordLayer>();
+            List<RecordLayer> outClientHandShakeLayers = new List<RecordLayer>();
+            List<RecordLayer> outserverHandShakeLayers = new List<RecordLayer>();
 
             bool serverComplete = false;
 
-            bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+            bool clientComplete = clientSecureChannel.ProcessMessage(null, outClientHandShakeLayers);
 
             while (!serverComplete || !clientComplete)
             {
                 if (!serverComplete)
                 {
                     int offset=0 ;
-                    byte[] combineBytes = new byte[clientOutgoingMessages.Sum(c => ((byte[])c).Length)];
-                    foreach (var clientOutgoingMessage in clientOutgoingMessages)
+                    byte[] combineBytes = new byte[outClientHandShakeLayers.Sum(c => ((byte[])c).Length)];
+                    foreach (var clientOutgoingMessage in outClientHandShakeLayers)
                     {
                         byte[] data = clientOutgoingMessage;
                         Buffer.BlockCopy(data, 0, combineBytes, offset, data.Length);
                         offset += data.Length;
                     }
                     ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(combineBytes);
-                    serverComplete = serverSecureChannel.ResolveRecordLayer(buffer, serverOutgoingMessages);
+                    serverComplete = serverSecureChannel.ResolveRecordLayer(buffer,null, outserverHandShakeLayers);
                     Assert.AreEqual(buffer.Length , 0);
-                    clientOutgoingMessages.Clear();
+                    outClientHandShakeLayers.Clear();
                 }
 
                 if (!clientComplete)
                 {
                     int offset =0;
-                    byte[] combineBytes = new byte[serverOutgoingMessages.Sum(c => ((byte[])c).Length)];
-                    foreach (var clientOutgoingMessage in serverOutgoingMessages)
+                    byte[] combineBytes = new byte[outserverHandShakeLayers.Sum(c => ((byte[])c).Length)];
+                    foreach (var clientOutgoingMessage in outserverHandShakeLayers)
                     {
                         byte[] data = clientOutgoingMessage;
                         Buffer.BlockCopy(data, 0, combineBytes, offset, data.Length);
                         offset += data.Length;
                     }
                     ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(combineBytes);
-                    clientComplete = clientSecureChannel.ResolveRecordLayer(buffer, clientOutgoingMessages);
+                    clientComplete = clientSecureChannel.ResolveRecordLayer(buffer, null, outClientHandShakeLayers);
                     Assert.AreEqual(buffer.Length, 0);
 
-                    serverOutgoingMessages.Clear();
+                    outserverHandShakeLayers.Clear();
                 }
             }
             clientSecureChannel.Dispose();
@@ -432,16 +359,17 @@ namespace NetMQ.Security.Tests
             {
                 ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(data);
                 var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
-                List<RecordLayer> sslMessages = new List<RecordLayer>();
+                List<RecordLayer> recordLayers = new List<RecordLayer>();
+                List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
                 ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
 
-                bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+                bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
 
                 Assert.AreEqual(result, true);
                 Assert.AreEqual(result, true);
                 List<RecordLayer> plainMessageList = new List<RecordLayer>();
-                foreach (var message in sslMessages)
+                foreach (var message in recordLayers)
                 {
                     byte[] d = m_clientSecureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);
                     Assert.AreEqual(data, d);
@@ -465,18 +393,19 @@ namespace NetMQ.Security.Tests
         {
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("HelloWorld"));
             var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
-            List<RecordLayer> sslMessages = new List<RecordLayer>();
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
 
             Assert.AreEqual(result, true);
 
             Assert.AreEqual(buffer1.Length, 0);
-            Assert.AreEqual(sslMessages.Count, 1);
+            Assert.AreEqual(recordLayers.Count, 1);
 
-            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(recordLayers[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "HelloWorld");
         }
 
@@ -486,27 +415,27 @@ namespace NetMQ.Security.Tests
             // server to client
             ReadonlyBuffer<byte> buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Hello"));
             var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
-            List<RecordLayer> sslMessages = new List<RecordLayer>();
-
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
 
-            Assert.AreEqual(sslMessages.Count, 1);
+            Assert.AreEqual(recordLayers.Count, 1);
 
-            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(recordLayers[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Hello");
 
             // client to server
             buffer = new ReadonlyBuffer<byte>(Encoding.GetEncoding("GBK").GetBytes("Reply"));
             combineBytes = m_clientSecureChannel.EncryptApplicationData(buffer);
             buffer1 = new ReadonlyBuffer<byte>(combineBytes);
-            sslMessages.Clear();
-            result = m_serverSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+            recordLayers.Clear();
+            result = m_serverSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
 
-            Assert.AreEqual(sslMessages.Count, 1);
+            Assert.AreEqual(recordLayers.Count, 1);
 
-            d = m_serverSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
+            d = m_serverSecureChannel.DecryptApplicationData(recordLayers[0].RecordProtocols[0].HandShakeData);
             Assert.AreEqual(Encoding.GetEncoding("GBK").GetString(d), "Reply");
         }
 
@@ -517,56 +446,17 @@ namespace NetMQ.Security.Tests
 
             var cipherMessage = m_serverSecureChannel.EncryptApplicationData(buffer);
 
-            List<RecordLayer> sslMessages = new List<RecordLayer>();
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
 
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(cipherMessage);
-            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
 
-            Assert.AreEqual(sslMessages.Count, 1);
-            byte[] d = m_clientSecureChannel.DecryptApplicationData(sslMessages[0].RecordProtocols[0].HandShakeData);
+            Assert.AreEqual(recordLayers.Count, 1);
+            byte[] d = m_clientSecureChannel.DecryptApplicationData(recordLayers[0].RecordProtocols[0].HandShakeData);
 
             Assert.AreEqual(d.Length, 0);
-        }
-
-
-        [Test]
-        [Ignore("不支持多个ApplicationData")]
-        public void ReorderFrames()
-        {
-            NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append("Hello");
-            plainMessage.Append("World");
-
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
-
-            int offset;
-            List<NetMQMessage> sslMessages;
-
-            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
-
-
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
-            NetMQMessage temp = new NetMQMessage(cipherMessage.FrameCount);
-            while (cipherMessage.FrameCount > 4)
-            {
-                temp.Append(cipherMessage.Pop());
-            }
-            NetMQFrame oneBeforeLastLengthFrame = cipherMessage.Pop();
-            NetMQFrame oneBeforeLastFrame = cipherMessage.Pop();
-
-            NetMQFrame lastLengthFrame = cipherMessage.Pop();
-            NetMQFrame lastFrame = cipherMessage.Pop();
-
-            temp.Append(lastLengthFrame);
-            temp.Append(lastFrame);
-            temp.Append(oneBeforeLastLengthFrame);
-            temp.Append(oneBeforeLastFrame);
-            cipherMessage = temp;
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
-
-            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
 
 
@@ -582,15 +472,16 @@ namespace NetMQ.Security.Tests
             new Random().NextBytes(buffer._Data);
 
             var combineBytes = m_serverSecureChannel.EncryptApplicationData(buffer);
-            List<RecordLayer> sslMessages = new List<RecordLayer>();
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
             ReadonlyBuffer<byte> buffer1 = new ReadonlyBuffer<byte>(combineBytes);
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, sslMessages);
+            bool result = m_clientSecureChannel.ResolveRecordLayer(buffer1, recordLayers, handshakeLayers);
             Assert.AreEqual(result, true);
             List<RecordLayer> plainMessageList = new List<RecordLayer>();
             int sum = 0;
-            foreach (var message in sslMessages)
+            foreach (var message in recordLayers)
             {
                 byte[] d = m_clientSecureChannel.DecryptApplicationData(message.RecordProtocols[0].HandShakeData);
                 sum += d.Length;
@@ -603,7 +494,7 @@ namespace NetMQ.Security.Tests
             AutoResetEvent autoResetEvent = new AutoResetEvent(false);
             int count = 0;
             object lockObject = new object();
-            Queue<NetMQMessage> queue = new Queue<NetMQMessage>(2000);
+            Queue<byte[]> queue = new Queue<byte[]>(2000);
             bool finish = false;
             for (int i = 0; i < 4; i++)
             {
@@ -613,11 +504,10 @@ namespace NetMQ.Security.Tests
                     {
                         for (int j = 0; j < 500; j++)
                         {
-                            NetMQMessage plainMessage1 = new NetMQMessage();
-                            plainMessage1.Append("Hello");
+                            byte[]  plainMessage1 = Encoding.ASCII.GetBytes("Hello");
                             lock (queue)
                             {
-                                NetMQMessage cipherMessage1 = m_serverSecureChannel.EncryptApplicationMessage(plainMessage1);
+                                byte[] cipherMessage1 = m_serverSecureChannel.EncryptApplicationData((ReadonlyBuffer<byte>)plainMessage1);
                                 queue.Enqueue(cipherMessage1);
                             }
                         }
@@ -643,17 +533,17 @@ namespace NetMQ.Security.Tests
                     {
                         while (!finish)
                         {
-                            NetMQMessage cipherMessage1;
+                            byte[] cipherMessage1;
                             lock (queue)
                             {
                                 cipherMessage1 = queue.Dequeue();
                             }
-                            int offet = 0;
-                            List<NetMQMessage> sslMessages;
-                            m_clientSecureChannel.ResolveRecordLayer(cipherMessage1[0].Buffer, out offet, out sslMessages);
+                            List<RecordLayer> recordLayers = new List<RecordLayer>();
+                            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
+                            m_clientSecureChannel.ResolveRecordLayer((ReadonlyByteBuffer)cipherMessage1, recordLayers, handshakeLayers);
 
-                            NetMQMessage decryptedMessage1 = m_clientSecureChannel.DecryptApplicationMessage(sslMessages[0]);
-                            Assert.AreEqual(decryptedMessage1[0].ConvertToString(), "Hello");
+                            byte[] decryptedMessage1 = m_clientSecureChannel.DecryptApplicationData((ReadonlyByteBuffer)recordLayers[0].RecordProtocols[0].ToBytes());
+                            Assert.AreEqual(Encoding.ASCII.GetString(decryptedMessage1), "Hello");
                         }
                         Interlocked.Increment(ref count);
                         if (count == 4)
@@ -674,56 +564,25 @@ namespace NetMQ.Security.Tests
             autoResetEvent.WaitOne();
             finish = true;
         }
-
-
-        [Test]
-        public void ChangeEncryptedFrameLength()
-        {
-            NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append("Hello");
-
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
-
-
-            int offset;
-            List<NetMQMessage> sslMessages;
-
-            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
-
-
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
-
-            cipherMessage.RemoveFrame(cipherMessage.Last);
-
-            // appending new frame with length different then block size
-            cipherMessage.Append("ChangeEncryptedFrame");
-
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
-
-            Assert.AreEqual(NetMQSecurityErrorCode.EncryptedFrameInvalidLength, exception.ErrorCode);
-        }
-
         [Test]
         public void ChangeThePadding()
         {
-            NetMQMessage plainMessage = new NetMQMessage();
-            plainMessage.Append("Hello");
+            byte[]  plainMessage = Encoding.ASCII.GetBytes("Hello");
 
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            byte[] cipherMessage = m_serverSecureChannel.EncryptApplicationData((ReadonlyBuffer<byte>)plainMessage);
 
-            int offset;
-            List<NetMQMessage> sslMessages;
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+            bool result = m_clientSecureChannel.ResolveRecordLayer((ReadonlyBuffer<byte>)cipherMessage, recordLayers, handshakeLayers);
 
 
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
+            Assert.AreEqual(recordLayers.Count, 1);
+            cipherMessage = recordLayers[0].RecordProtocols[0].ToBytes();
 
-            cipherMessage.Last.Buffer[15]++;
+            cipherMessage[15]++;
 
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationData((ReadonlyBuffer<byte>)cipherMessage));
 
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
@@ -731,128 +590,65 @@ namespace NetMQ.Security.Tests
         [Test]
         public void ReplayAttach()
         {
-            NetMQMessage plainMessage = new NetMQMessage();
+            byte[] plainMessage = EmptyArray<byte>.Instance;
 
-            NetMQMessage cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
+            byte[] cipherMessage = m_serverSecureChannel.EncryptApplicationData((ReadonlyBuffer<byte>)plainMessage);
 
-            // make a copy of the message because the method alter the current message
-            NetMQMessage cipherMessageCopy = new NetMQMessage(cipherMessage);
+            byte[] cipherMessageCopy = cipherMessage.ToArray();
+            List<RecordLayer> recordLayers = new List<RecordLayer>();
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
 
-            int offset;
-            List<NetMQMessage> sslMessages;
+            bool result = m_clientSecureChannel.ResolveRecordLayer((ReadonlyBuffer<byte>)cipherMessage, recordLayers, handshakeLayers);
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+            Assert.AreEqual(recordLayers.Count, 1);
+            cipherMessage = recordLayers[0].RecordProtocols[0].ToBytes();
 
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
-
-            m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
-            cipherMessage = new NetMQMessage(cipherMessageCopy);
-
-            result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
-
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
-
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
-
-            Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
-        }
-
-        [Test]
-        public void DecryptingOldMessage()
-        {
-            NetMQMessage plainMessage = new NetMQMessage();
-
-            NetMQMessage cipherMessageCopy = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
-
-            NetMQMessage cipherMessage = new NetMQMessage(cipherMessageCopy);
-            // copy of the first message, we are actually never try to decrypt the first message 
-            // (to make sure the exception is because of the old message and not because the message was decrypted twice).
-
-
-            // the window size is 1024, we to decrypt 1024 messages before trying to decrypt the old message
-            bool changeCipherSepc = m_serverSecureChannel.ChangeSuiteChangeArrived;
-            int offset;
-            List<NetMQMessage> sslMessages;
-            for (int i = 0; i < 1025; i++)
-            {
-                m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
-                Assert.AreEqual(sslMessages.Count, 1);
-                cipherMessage = sslMessages[0];
-                m_clientSecureChannel.DecryptApplicationMessage(cipherMessage);
-                cipherMessage = m_serverSecureChannel.EncryptApplicationMessage(plainMessage);
-            }
+            m_clientSecureChannel.DecryptApplicationData((ReadonlyBuffer<byte>)cipherMessage);
             cipherMessage = cipherMessageCopy;
+            recordLayers.Clear();
+            result = m_clientSecureChannel.ResolveRecordLayer((ReadonlyBuffer<byte>)cipherMessage, recordLayers, handshakeLayers);
 
-            bool result = m_clientSecureChannel.ResolveRecordLayer(cipherMessage.First.Buffer, out offset, out sslMessages);
+            Assert.AreEqual(recordLayers.Count, 1);
+            cipherMessage = recordLayers[0].RecordProtocols[0].ToBytes();
 
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipherMessage = sslMessages[0];
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationMessage(cipherMessage));
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_clientSecureChannel.DecryptApplicationData((ReadonlyBuffer<byte>)cipherMessage));
 
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
-
         [Test]
         public void DecryptOutOfOrder()
         {
-            NetMQMessage plain1 = new NetMQMessage();
-            plain1.Append("1");
+            byte[] plain1 = Encoding.ASCII.GetBytes("1");
 
-            NetMQMessage plain2 = new NetMQMessage();
-            plain2.Append("2");
+            byte[] plain2 = Encoding.ASCII.GetBytes("2");
 
-            NetMQMessage cipher1 = m_clientSecureChannel.EncryptApplicationMessage(plain1);
-            NetMQMessage cipher2 = m_clientSecureChannel.EncryptApplicationMessage(plain2);
+            byte[] cipher1 = m_clientSecureChannel.EncryptApplicationData((ReadonlyBuffer<byte>)plain1);
+            byte[] cipher2 = m_clientSecureChannel.EncryptApplicationData((ReadonlyBuffer<byte>)plain2);
 
-            int offset;
-            List<NetMQMessage> sslMessages;
-            bool result = m_serverSecureChannel.ResolveRecordLayer(cipher1.First.Buffer, out offset, out sslMessages);
+            List<RecordLayer> recordLayers1 = new List<RecordLayer>();
 
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipher1 = sslMessages[0];
-            result = m_serverSecureChannel.ResolveRecordLayer(cipher2.First.Buffer, out offset, out sslMessages);
-            Assert.AreEqual(sslMessages.Count, 1);
-            cipher2 = sslMessages[0];
+            List<RecordLayer> handshakeLayers = new List<RecordLayer>();
+            bool result = m_serverSecureChannel.ResolveRecordLayer((ReadonlyBuffer<byte>)cipher1, recordLayers1, handshakeLayers);
 
-            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationMessage(cipher2));
+            Assert.AreEqual(recordLayers1.Count, 1);
+            cipher1 = recordLayers1[0].RecordProtocols[0].ToBytes();
+            List<RecordLayer> recordLayers2 = new List<RecordLayer>();
+            result = m_serverSecureChannel.ResolveRecordLayer((ReadonlyBuffer<byte>)cipher2, recordLayers2, handshakeLayers);
+            Assert.AreEqual(recordLayers2.Count, 1);
+            cipher2 = recordLayers2[0].RecordProtocols[0].ToBytes();
+
+            NetMQSecurityException exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationData((ReadonlyBuffer<byte>)cipher2));
 
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
-            exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationMessage(cipher1));
+            exception = Assert.Throws<NetMQSecurityException>(() => m_serverSecureChannel.DecryptApplicationData((ReadonlyBuffer<byte>)cipher1));
 
             Assert.AreEqual(NetMQSecurityErrorCode.MACNotMatched, exception.ErrorCode);
         }
-        public void AES256Test()
-        {
-            int FixedIVLength = 0;
-            int EncKeyLength = 32;
-            int BlockLength = 16;
-            int RecordIVLength = 16;
-            SymmetricAlgorithm encryptionBulkAlgorithm  = new AesCryptoServiceProvider
-            {
-                Padding = PaddingMode.None,
-                KeySize = EncKeyLength * 8,
-                BlockSize = BlockLength * 8
-            };
-            SymmetricAlgorithm decryptionBulkAlgorithm  = new AesCryptoServiceProvider
-            {
-                Padding = PaddingMode.None,
-                KeySize = EncKeyLength * 8,
-                BlockSize = BlockLength * 8
-            };
-        }
-
         /// <summary>
-
         /// AES加密
-
         /// </summary>
-
         /// <param name="encryptStr">明文</param>
-
         /// <param name="key">密钥</param>
-
         /// <returns></returns>
 
         public static string Encrypt(string encryptStr, string key)

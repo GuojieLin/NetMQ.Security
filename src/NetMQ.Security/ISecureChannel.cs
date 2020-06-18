@@ -39,41 +39,13 @@ namespace NetMQ.Security
         /// <param name="verifyCertificate">Delegate for the verify certificate method</param>
         void SetVerifyCertificate(VerifyCertificateDelegate verifyCertificate);
 
-        /// <summary>
-        /// Process handshake and change cipher suite messages. This method should be called for every incoming message until the method returns true.
-        /// You cannot encrypt or decrypt messages until the method return true.
-        /// Each call to the method may include outgoing messages that need to be sent to the other peer.
-        /// </summary>
-        /// <param name="incomingMessage">The incoming message from the other peer</param>
-        /// <param name="outgoingMesssages">Outgoing messages that need to be sent to the other peer</param>
-        /// <returns>Return true when the method completes the handshake stage and the SecureChannel is ready to encrypt and decrypt messages</returns>
-        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
-        bool ProcessMessage(NetMQMessage incomingMessage, IList<NetMQMessage> outgoingMesssages);
-
-        bool ProcessMessage(RecordLayer inRecordLayer, IList<RecordLayer> outRecordLayers);
+        bool ProcessMessage(RecordLayer inRecordLayer, List<RecordLayer> outRecordLayers);
 
         /// <summary>
         /// Encrypt application Message
         /// </summary>
         /// <param name="plainMessage">The plain message</param>
         /// <returns>The cipher message</returns>
-        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
-        NetMQMessage EncryptApplicationMessage(NetMQMessage plainMessage);
-
-        /// <summary>
-        /// Decrypt application message
-        /// </summary>
-        /// <param name="cipherMessage">The cipher message</param>
-        /// <returns>The decrypted message</returns>
-        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
-        NetMQMessage DecryptApplicationMessage(NetMQMessage cipherMessage);
-
-        /// <summary>
-        /// Encrypt application Message
-        /// </summary>
-        /// <param name="plainMessage">The plain message</param>
-        /// <returns>The cipher message</returns>
-        byte[] EncryptApplicationBytes(byte[] plainMessage);
         byte[] EncryptApplicationData(ReadonlyBuffer<byte> plainMessage);
 
         /// <summary>
@@ -81,7 +53,6 @@ namespace NetMQ.Security
         /// </summary>
         /// <param name="cipherMessage">The cipher message</param>
         /// <returns>The decrypted message</returns>
-        byte[] DecryptApplicationBytes(byte[] cipherMessage);
         byte[] DecryptApplicationData(ReadonlyBuffer<byte> cipherMessage);
     }
 }

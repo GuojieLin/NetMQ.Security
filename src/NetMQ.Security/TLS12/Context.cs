@@ -341,23 +341,6 @@ namespace NetMQ.Security.TLS12
             return cipherBytes;
         }
 
-        /// <summary>
-        /// Return a new <see cref="NetMQMessage"/> that contains the decrypted content of the give message.
-        /// </summary>
-        /// <param name="contentType">This identifies the type of content: ChangeCipherSpec, Handshake, or ApplicationData.</param>
-        /// <param name="cipherMessage">the message to decrypt</param>
-        /// <returns>a new NetMQMessage with the contents decrypted</returns>
-        /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.InvalidFramesCount"/>: Cipher message must have at least 2 frames, iv and sequence number.</exception>
-        /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.ReplayAttack"/>: Message already handled or very old message, might be under replay attack.</exception>
-        /// <exception cref="NetMQSecurityException"><see cref="NetMQSecurityErrorCode.EncryptedFramesMissing"/>: Frames were removed from the encrypted message.</exception>
-        [Obsolete("不再使用NetMQMessage解析TLS协议RecordLayer层")]
-        public NetMQMessage DecryptMessage(ContentType contentType, NetMQMessage cipherMessage)
-        {
-            NetMQMessage message = new NetMQMessage();
-            byte[] bytes = DecryptMessage(contentType,cipherMessage.Last.Buffer);
-            message.Append(bytes);
-            return message;
-        }
         public byte[] DecryptMessage(ContentType contentType, byte[] cipherMessage)
         {
             if (SecurityParameters.BulkCipherAlgorithm == BulkCipherAlgorithm.Null &&

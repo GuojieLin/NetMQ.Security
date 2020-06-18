@@ -78,6 +78,18 @@ namespace NetMQ.Security
             return false;
         }
 
+        public override bool Equals(object obj)
+        {
+            if (obj == null) return false;
+            byte[] bytes = obj as byte[];
+            if (bytes == null) return false;
+            return bytes.SequenceEqual((byte[])this);
+        }
+
+        public override int GetHashCode()
+        {
+            return this.Major ^ this.Minor;
+        }
 
         public bool Equals(ProtocolVersion other)
         {

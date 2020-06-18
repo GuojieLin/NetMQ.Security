@@ -5,7 +5,7 @@ using System.Text;
 
 namespace NetMQ.Security
 {
-    public class TLSLength 
+    public struct TLSLength 
     {
         /// <summary>
         /// 10进制长度
